@@ -14,12 +14,24 @@ export interface TileData {
 
 /**
  * Checks if a tile can completely slide out of the board without its head ray hitting any other cells.
+ * Uses a Set for O(1) cell occupancy lookups.
  */
 export function canMove(
     tile: TileData,
     board: TileData[],
-    boardSize: number = 20,
+    boardSize: number,
 ): boolean {
+    // Build a 2D boolean array of occupied cells from all other active tiles
+    const occupied = Array(boardSize)
+        .fill(0)
+        .map(() => Array(boardSize).fill(false));
+    for (const other of board) {
+        if (other.id === tile.id || other.removed) continue;
+        for (const p of other.path) {
+            occupied[p.y][p.x] = true;
+        }
+    }
+
     const head = tile.path[tile.path.length - 1];
     let cx = head.x;
     let cy = head.y;
@@ -33,19 +45,13 @@ export function canMove(
         cx += dirX;
         cy += dirY;
 
-        // Check if within a massive conceptual outer bounds
-        if (cx < -5 || cx > boardSize + 5 || cy < -5 || cy > boardSize + 5) {
+        // Out of bounds — clear path
+        if (cx < 0 || cx >= boardSize || cy < 0 || cy >= boardSize) {
             break;
         }
 
-        // Check if any other tile occupies this cell currently
-        for (const other of board) {
-            if (other.id === tile.id || other.removed) continue;
-
-            // If another tile is at (cx, cy), we are blocked!
-            if (other.path.some((p) => p.x === cx && p.y === cy)) {
-                return false;
-            }
+        if (occupied[cy]?.[cx]) {
+            return false;
         }
     }
 

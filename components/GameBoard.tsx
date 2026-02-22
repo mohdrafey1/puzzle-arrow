@@ -46,8 +46,9 @@ export function GameBoard({
 
     const pinch = Gesture.Pinch()
         .onUpdate((e) => {
+            const minScale = boardSize <= 10 ? 1.0 : 0.8;
             scale.value = Math.max(
-                0.5,
+                minScale,
                 Math.min(savedScale.value * e.scale, 4),
             );
         })
@@ -90,13 +91,20 @@ export function GameBoard({
 
     const handleTapCell = (x: number, y: number) => {
         // Find highest z-index path that occupies this cell
-        // Since board is mapped reverse from generation, last elements in array are drawn on top,
-        // wait, we map forward, so last is on top. We search reversed.
-        const tile = [...board]
-            .reverse()
-            .find(
+        // Prioritize tapping the actual "head" of an arrow over intersecting paths
+        const reversedBoard = [...board].reverse();
+        const headTile = reversedBoard.find(
+            (t) =>
+                !t.removed &&
+                t.path[t.path.length - 1].x === x &&
+                t.path[t.path.length - 1].y === y,
+        );
+        const tile =
+            headTile ||
+            reversedBoard.find(
                 (t) => !t.removed && t.path.some((p) => p.x === x && p.y === y),
             );
+
         if (tile) {
             const ref = tileRefs.current[tile.id];
             onTap(tile, () => ref?.onExit());
@@ -144,7 +152,7 @@ export function GameBoard({
                                     key={`dot-${c.x}-${c.y}`}
                                     cx={c.x * cellSize + cellSize / 2}
                                     cy={c.y * cellSize + cellSize / 2}
-                                    r={3}
+                                    r={1}
                                     fill={dotColor}
                                 />
                             ))}

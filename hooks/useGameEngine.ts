@@ -1,6 +1,6 @@
 import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { generateLevel, LevelData } from "../constants/levels";
+import { generateLevel, LEVEL_VERSION, LevelData } from "../constants/levels";
 import { canMove, TileData } from "../utils/movement";
 import {
     getCachedLevel,
@@ -8,20 +8,27 @@ import {
     setCachedLevel,
 } from "../utils/storage";
 
-function buildBoard(tiles: Omit<TileData, "id">[]): TileData[] {
+function buildBoard(
+    tiles: Omit<TileData, "id">[],
+    levelId: number,
+    attemptCount: number,
+): TileData[] {
     return tiles
         .map((t, index) => ({
             ...t,
-            id: `p_${index}_${Math.random()}`,
+            id: `p_${levelId}_${attemptCount}_${index}`,
         }))
         .reverse();
 }
 
 async function loadLevel(levelId: number): Promise<LevelData> {
-    const cached = (await getCachedLevel(levelId)) as LevelData | null;
+    const cached = (await getCachedLevel(
+        levelId,
+        LEVEL_VERSION,
+    )) as LevelData | null;
     if (cached) return cached;
     const fresh = generateLevel(levelId);
-    await setCachedLevel(levelId, fresh);
+    await setCachedLevel(levelId, LEVEL_VERSION, fresh);
     return fresh;
 }
 
@@ -29,8 +36,9 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
     const [levelData, setLevelData] = useState<LevelData>(() =>
         generateLevel(levelId),
     );
+    const [attemptCount, setAttemptCount] = useState(0);
     const [board, setBoard] = useState<TileData[]>(() =>
-        buildBoard(levelData.tiles),
+        buildBoard(levelData.tiles, levelId, 0),
     );
     const [hearts, setHearts] = useState(3);
     const [isResetting, setIsResetting] = useState(false);
@@ -43,11 +51,8 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
     const hapticsEnabled = useRef(true);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // ── Key fix: keep a stable ref to board so handleTap never needs board in deps ──
+    // ── Keep stable refs so handleTap never needs state in deps ──
     const boardRef = useRef<TileData[]>(board);
-    useEffect(() => {
-        boardRef.current = board;
-    }, [board]);
 
     const levelDataRef = useRef<LevelData>(levelData);
     useEffect(() => {
@@ -58,7 +63,8 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
     useEffect(() => {
         loadLevel(levelId).then((data) => {
             setLevelData(data);
-            setBoard(buildBoard(data.tiles));
+            setAttemptCount(0);
+            setBoard(buildBoard(data.tiles, levelId, 0));
         });
     }, [levelId]);
 
@@ -71,7 +77,7 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
 
     // Timer
     useEffect(() => {
-        if (isComplete || isResetting) {
+        if (isComplete || isResetting || isGameOver) {
             if (timerRef.current) clearInterval(timerRef.current);
             return;
         }
@@ -83,7 +89,7 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
         };
-    }, [levelId, isResetting, isComplete]);
+    }, [levelId, isResetting, isComplete, isGameOver]);
 
     const haptic = useCallback(
         (type: "light" | "heavy" | "error" | "success") => {
@@ -109,13 +115,21 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
         setIsComplete(false);
         setIsGameOver(false);
         setTimeout(() => {
-            const newBoard = buildBoard(levelDataRef.current.tiles);
-            boardRef.current = newBoard;
-            setBoard(newBoard);
+            setAttemptCount((prev) => {
+                const nextAttempt = prev + 1;
+                const newBoard = buildBoard(
+                    levelDataRef.current.tiles,
+                    levelId,
+                    nextAttempt,
+                );
+                boardRef.current = newBoard;
+                setBoard(newBoard);
+                return nextAttempt;
+            });
             setHearts(3);
             setIsResetting(false);
         }, 500);
-    }, []);
+    }, [levelId]);
 
     const removeTile = useCallback(
         (id: string) => {
@@ -123,7 +137,6 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
                 const next = prev.map((t) =>
                     t.id === id ? { ...t, removed: true } : t,
                 );
-                boardRef.current = next;
                 if (next.every((t) => t.removed)) {
                     haptic("success");
                     setIsComplete(true);
@@ -136,10 +149,6 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
     );
 
     // ── Stable handleTap: reads board/levelData from refs, never recreates on board change ──
-    const resetLevelRef = useRef(resetLevel);
-    useEffect(() => {
-        resetLevelRef.current = resetLevel;
-    }, [resetLevel]);
     const removeTileRef = useRef(removeTile);
     useEffect(() => {
         removeTileRef.current = removeTile;

@@ -1,6 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const CURRENT_LEVEL_KEY = "@current_level";
 const UNLOCKED_LEVEL_KEY = "@unlocked_level";
 const THEME_KEY = "@app_theme";
 const HAPTICS_KEY = "@haptics_enabled";
@@ -53,7 +52,6 @@ export async function setThemePreference(theme: ThemeType): Promise<void> {
 export async function resetProgress(): Promise<void> {
     try {
         await AsyncStorage.removeItem(UNLOCKED_LEVEL_KEY);
-        await AsyncStorage.removeItem(CURRENT_LEVEL_KEY);
         await AsyncStorage.removeItem(COMPLETED_LEVELS_KEY);
     } catch (e) {
         // skip
@@ -77,19 +75,28 @@ export async function setHapticsEnabled(enabled: boolean): Promise<void> {
     }
 }
 
-export async function getCachedLevel(id: number): Promise<object | null> {
+export async function getCachedLevel(
+    id: number,
+    version: number,
+): Promise<object | null> {
     try {
-        const val = await AsyncStorage.getItem(`${LEVEL_CACHE_PREFIX}${id}`);
+        const val = await AsyncStorage.getItem(
+            `${LEVEL_CACHE_PREFIX}v${version}_${id}`,
+        );
         return val ? JSON.parse(val) : null;
     } catch {
         return null;
     }
 }
 
-export async function setCachedLevel(id: number, data: object): Promise<void> {
+export async function setCachedLevel(
+    id: number,
+    version: number,
+    data: object,
+): Promise<void> {
     try {
         await AsyncStorage.setItem(
-            `${LEVEL_CACHE_PREFIX}${id}`,
+            `${LEVEL_CACHE_PREFIX}v${version}_${id}`,
             JSON.stringify(data),
         );
     } catch {

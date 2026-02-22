@@ -2,18 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
 import { Pressable, Text, View } from "react-native";
+import { formatTime } from "../utils/format";
 import { HeartsBar } from "./HeartsBar";
 
 interface LevelHeaderProps {
     levelId: number;
     hearts: number;
     elapsedSeconds: number;
-}
-
-function formatTime(s: number): string {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return m > 0 ? `${m}:${sec.toString().padStart(2, "0")}` : `${sec}s`;
 }
 
 export function LevelHeader({

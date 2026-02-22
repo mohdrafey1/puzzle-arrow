@@ -17,6 +17,7 @@ export default function TabLayout() {
                     elevation: 0,
                     shadowOpacity: 0,
                     borderTopWidth: 1,
+                    height: 70,
                 },
                 tabBarActiveTintColor: "#3B82F6",
                 tabBarInactiveTintColor: isDark ? "#9CA3AF" : "#6B7280",

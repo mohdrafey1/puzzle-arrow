@@ -10,6 +10,14 @@ import "react-native-reanimated";
 import "../global.css";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import * as NavigationBar from "expo-navigation-bar";
+import { Platform } from "react-native";
+
+if (Platform.OS === "android") {
+    NavigationBar.setPositionAsync("absolute");
+    NavigationBar.setVisibilityAsync("hidden");
+    NavigationBar.setBehaviorAsync("overlay-swipe");
+}
 
 export const unstable_settings = {
     anchor: "(tabs)",
@@ -35,10 +43,6 @@ export default function RootLayout() {
                     <Stack.Screen
                         name="completed-levels"
                         options={{ headerShown: false }}
-                    />
-                    <Stack.Screen
-                        name="modal"
-                        options={{ presentation: "modal", title: "Modal" }}
                     />
                 </Stack>
                 <StatusBar style="auto" />

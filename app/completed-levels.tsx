@@ -3,13 +3,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useColorScheme } from "nativewind";
 import { useCallback, useState } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
+import { formatTime } from "../utils/format";
 import { CompletionRecord, getCompletedLevels } from "../utils/storage";
-
-function formatTime(s: number): string {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return m > 0 ? `${m}:${sec.toString().padStart(2, "0")}` : `${sec}s`;
-}
 
 function StarRow({ count }: { count: number }) {
     return (

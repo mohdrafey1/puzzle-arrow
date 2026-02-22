@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Pressable, Text, View } from "react-native";
 import Animated, {
     useAnimatedStyle,
@@ -12,17 +12,12 @@ import { ConfettiOverlay } from "../../components/ConfettiOverlay";
 import { GameBoard } from "../../components/GameBoard";
 import { LevelHeader } from "../../components/LevelHeader";
 import { useGameEngine } from "../../hooks/useGameEngine";
+import { formatTime } from "../../utils/format";
 import {
     getUnlockedLevel,
     saveCompletedLevel,
     setUnlockedLevel,
 } from "../../utils/storage";
-
-function formatTime(s: number): string {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return m > 0 ? `${m}:${sec.toString().padStart(2, "0")}` : `${sec}s`;
-}
 
 function getStars(hearts: number): number {
     if (hearts >= 3) return 3;
@@ -67,15 +62,17 @@ export default function GameScreen() {
     const stars = getStars(hearts);
 
     // Persist completion stats (once)
-    if (isComplete && finalTime.current > 0 && !savedCompletion.current) {
-        savedCompletion.current = true;
-        saveCompletedLevel({
-            levelId,
-            time: finalTime.current,
-            heartsUsed,
-            stars,
-        });
-    }
+    useEffect(() => {
+        if (isComplete && finalTime.current > 0 && !savedCompletion.current) {
+            savedCompletion.current = true;
+            saveCompletedLevel({
+                levelId,
+                time: finalTime.current,
+                heartsUsed: 3 - hearts,
+                stars,
+            });
+        }
+    }, [isComplete]);
 
     // Card entrance animation (shared by completion & game over overlays)
     const cardScale = useSharedValue(0.6);
