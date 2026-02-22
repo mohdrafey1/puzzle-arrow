@@ -1,0 +1,208 @@
+import * as Haptics from "expo-haptics";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { generateLevel, LevelData } from "../constants/levels";
+import { canMove, TileData } from "../utils/movement";
+import {
+    getCachedLevel,
+    getHapticsEnabled,
+    setCachedLevel,
+} from "../utils/storage";
+
+function buildBoard(tiles: Omit<TileData, "id">[]): TileData[] {
+    return tiles
+        .map((t, index) => ({
+            ...t,
+            id: `p_${index}_${Math.random()}`,
+        }))
+        .reverse();
+}
+
+async function loadLevel(levelId: number): Promise<LevelData> {
+    const cached = (await getCachedLevel(levelId)) as LevelData | null;
+    if (cached) return cached;
+    const fresh = generateLevel(levelId);
+    await setCachedLevel(levelId, fresh);
+    return fresh;
+}
+
+export function useGameEngine(levelId: number, onLevelComplete: () => void) {
+    const [levelData, setLevelData] = useState<LevelData>(() =>
+        generateLevel(levelId),
+    );
+    const [board, setBoard] = useState<TileData[]>(() =>
+        buildBoard(levelData.tiles),
+    );
+    const [hearts, setHearts] = useState(3);
+    const [isResetting, setIsResetting] = useState(false);
+    const [errorTileId, setErrorTileId] = useState<string | null>(null);
+    const [elapsedSeconds, setElapsedSeconds] = useState(0);
+    const [isComplete, setIsComplete] = useState(false);
+    const [isGameOver, setIsGameOver] = useState(false);
+
+    const animationLock = useRef(false);
+    const hapticsEnabled = useRef(true);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // ── Key fix: keep a stable ref to board so handleTap never needs board in deps ──
+    const boardRef = useRef<TileData[]>(board);
+    useEffect(() => {
+        boardRef.current = board;
+    }, [board]);
+
+    const levelDataRef = useRef<LevelData>(levelData);
+    useEffect(() => {
+        levelDataRef.current = levelData;
+    }, [levelData]);
+
+    // Load level from cache async
+    useEffect(() => {
+        loadLevel(levelId).then((data) => {
+            setLevelData(data);
+            setBoard(buildBoard(data.tiles));
+        });
+    }, [levelId]);
+
+    // Load haptics preference
+    useEffect(() => {
+        getHapticsEnabled().then((enabled) => {
+            hapticsEnabled.current = enabled;
+        });
+    }, []);
+
+    // Timer
+    useEffect(() => {
+        if (isComplete || isResetting) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            return;
+        }
+        setElapsedSeconds(0);
+        timerRef.current = setInterval(
+            () => setElapsedSeconds((s) => s + 1),
+            1000,
+        );
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, [levelId, isResetting, isComplete]);
+
+    const haptic = useCallback(
+        (type: "light" | "heavy" | "error" | "success") => {
+            if (!hapticsEnabled.current) return;
+            if (type === "light")
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            else if (type === "heavy")
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            else if (type === "success")
+                Haptics.notificationAsync(
+                    Haptics.NotificationFeedbackType.Success,
+                );
+            else
+                Haptics.notificationAsync(
+                    Haptics.NotificationFeedbackType.Error,
+                );
+        },
+        [],
+    );
+
+    const resetLevel = useCallback(() => {
+        setIsResetting(true);
+        setIsComplete(false);
+        setIsGameOver(false);
+        setTimeout(() => {
+            const newBoard = buildBoard(levelDataRef.current.tiles);
+            boardRef.current = newBoard;
+            setBoard(newBoard);
+            setHearts(3);
+            setIsResetting(false);
+        }, 500);
+    }, []);
+
+    const removeTile = useCallback(
+        (id: string) => {
+            setBoard((prev) => {
+                const next = prev.map((t) =>
+                    t.id === id ? { ...t, removed: true } : t,
+                );
+                boardRef.current = next;
+                if (next.every((t) => t.removed)) {
+                    haptic("success");
+                    setIsComplete(true);
+                    setTimeout(onLevelComplete, 500);
+                }
+                return next;
+            });
+        },
+        [onLevelComplete, haptic],
+    );
+
+    // ── Stable handleTap: reads board/levelData from refs, never recreates on board change ──
+    const resetLevelRef = useRef(resetLevel);
+    useEffect(() => {
+        resetLevelRef.current = resetLevel;
+    }, [resetLevel]);
+    const removeTileRef = useRef(removeTile);
+    useEffect(() => {
+        removeTileRef.current = removeTile;
+    }, [removeTile]);
+    const heartsRef = useRef(hearts);
+    useEffect(() => {
+        heartsRef.current = hearts;
+    }, [hearts]);
+    const isResettingRef = useRef(isResetting);
+    useEffect(() => {
+        isResettingRef.current = isResetting;
+    }, [isResetting]);
+
+    const handleTap = useCallback(
+        (tile: TileData, onExitAnimation: () => void) => {
+            if (
+                animationLock.current ||
+                isResettingRef.current ||
+                heartsRef.current <= 0
+            )
+                return;
+            animationLock.current = true;
+            setErrorTileId(null);
+
+            if (canMove(tile, boardRef.current, levelDataRef.current.size)) {
+                haptic("light");
+                onExitAnimation();
+                setTimeout(() => {
+                    removeTileRef.current(tile.id);
+                    animationLock.current = false;
+                }, 350);
+            } else {
+                haptic("error");
+                setErrorTileId(tile.id);
+                setHearts((prev) => {
+                    const next = prev - 1;
+                    if (next <= 0) {
+                        setTimeout(() => {
+                            setIsGameOver(true);
+                            animationLock.current = false;
+                        }, 500);
+                    } else {
+                        setTimeout(() => {
+                            animationLock.current = false;
+                        }, 400);
+                    }
+                    return next;
+                });
+            }
+        },
+        [haptic], // ← only haptic in deps — board/hearts read from refs
+    );
+
+    return {
+        board,
+        hearts,
+        levelData,
+        handleTap,
+        resetLevel,
+        isResetting,
+        errorTileId,
+        elapsedSeconds,
+        isComplete,
+        isGameOver,
+    };
+}
