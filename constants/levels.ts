@@ -8,10 +8,7 @@ export interface LevelData {
 }
 
 export function generateLevel(id: number): LevelData {
-    let size = 6;
-    if (id > 10 && id <= 25) size = 7;
-    else if (id > 25 && id <= 50) size = 8;
-    else if (id > 50) size = 9;
+    const size = Math.min(6 + Math.floor((id - 1) / 2), 50);
 
     let difficulty: "easy" | "normal" | "hard" = "normal";
     if (id <= 5) difficulty = "easy";

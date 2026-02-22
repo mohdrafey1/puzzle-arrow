@@ -168,6 +168,11 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
                 haptic("light");
                 onExitAnimation();
                 setTimeout(() => {
+                    // Eagerly update ref so the next tap sees the removal immediately
+                    // (React batches setBoard, so the updater inside removeTile may not run in time)
+                    boardRef.current = boardRef.current.map((t) =>
+                        t.id === tile.id ? { ...t, removed: true } : t,
+                    );
                     removeTileRef.current(tile.id);
                     animationLock.current = false;
                 }, 350);
