@@ -64,7 +64,9 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
         loadLevel(levelId).then((data) => {
             setLevelData(data);
             setAttemptCount(0);
-            setBoard(buildBoard(data.tiles, levelId, 0));
+            const newBoard = buildBoard(data.tiles, levelId, 0);
+            boardRef.current = newBoard;
+            setBoard(newBoard);
         });
     }, [levelId]);
 
@@ -170,6 +172,13 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
                 heartsRef.current <= 0
             )
                 return;
+
+            // Guard: look up the tile in the authoritative board ref —
+            // React state `board` used by handleTapCell may be stale after
+            // an eager removal, so the caller might pass an already-removed tile.
+            const liveTile = boardRef.current.find((t) => t.id === tile.id);
+            if (!liveTile || liveTile.removed) return;
+
             animationLock.current = true;
             setErrorTileId(null);
 

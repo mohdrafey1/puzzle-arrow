@@ -92,6 +92,7 @@ export default function GameScreen() {
                 levelId={levelId}
                 hearts={hearts}
                 elapsedSeconds={isComplete ? finalTime.current : elapsedSeconds}
+                arrowsRemaining={board.filter((t) => !t.removed).length}
             />
 
             <View className="flex-1 w-full items-center justify-center">

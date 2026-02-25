@@ -9,12 +9,14 @@ interface LevelHeaderProps {
     levelId: number;
     hearts: number;
     elapsedSeconds: number;
+    arrowsRemaining: number;
 }
 
 export function LevelHeader({
     levelId,
     hearts,
     elapsedSeconds,
+    arrowsRemaining,
 }: LevelHeaderProps) {
     const router = useRouter();
 
@@ -38,9 +40,16 @@ export function LevelHeader({
                     <Text className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
                         LEVEL
                     </Text>
-                    <Text className="text-xl font-black text-gray-900 dark:text-gray-100 leading-tight">
-                        {levelId}
-                    </Text>
+                    <View className="flex-row items-center gap-2">
+                        <Text className="text-xl font-black text-gray-900 dark:text-gray-100 leading-tight">
+                            {levelId}
+                        </Text>
+                        <View className="bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">
+                            <Text className="text-xs font-bold text-indigo-500">
+                                🏹 {arrowsRemaining}
+                            </Text>
+                        </View>
+                    </View>
                 </View>
             </View>
 
