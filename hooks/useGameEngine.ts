@@ -63,13 +63,38 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
 
     // Load level from cache async
     useEffect(() => {
+        let cancelled = false;
+
+        // Immediately reset gameplay state when switching levels.
+        setIsComplete(false);
+        setIsGameOver(false);
+        setIsResetting(false);
+        setErrorTileId(null);
+        setHearts(3);
+        setElapsedSeconds(0);
+
+        // Show deterministic fallback board immediately to avoid stale prior-level UI.
+        const fallback = generateLevel(levelId);
+        setLevelData(fallback);
+        levelDataRef.current = fallback;
+        setAttemptCount(0);
+        const fallbackBoard = buildBoard(fallback.tiles, levelId, 0);
+        boardRef.current = fallbackBoard;
+        setBoard(fallbackBoard);
+
         loadLevel(levelId).then((data) => {
+            if (cancelled) return;
             setLevelData(data);
+            levelDataRef.current = data;
             setAttemptCount(0);
             const newBoard = buildBoard(data.tiles, levelId, 0);
             boardRef.current = newBoard;
             setBoard(newBoard);
         });
+
+        return () => {
+            cancelled = true;
+        };
     }, [levelId]);
 
     // Load haptics preference

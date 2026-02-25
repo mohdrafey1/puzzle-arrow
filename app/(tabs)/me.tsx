@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useColorScheme } from "nativewind";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
     Alert,
     Pressable,
@@ -162,6 +162,22 @@ export default function MeSettings() {
         setSfxVolumeState(next);
         setSfxVolume(next);
     };
+
+    useEffect(() => {
+        return () => {
+            if (activePreviewSound.current) {
+                activePreviewSound.current.unloadAsync();
+                activePreviewSound.current = null;
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!sfxOn && activePreviewSound.current) {
+            activePreviewSound.current.unloadAsync();
+            activePreviewSound.current = null;
+        }
+    }, [sfxOn]);
 
     return (
         <ScrollView className="flex-1 bg-gray-100 dark:bg-gray-900 p-6 pt-16">

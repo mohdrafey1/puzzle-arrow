@@ -1,5 +1,6 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import Animated, {
     useAnimatedStyle,
@@ -30,7 +31,7 @@ export default function GameScreen() {
     const levelId = parseInt(level as string, 10);
     const isReplay = replay === "true";
     const router = useRouter();
-    const finalTime = useRef(0);
+    const [finalTime, setFinalTime] = useState(0);
     const savedCompletion = useRef(false);
 
     const handleComplete = useCallback(async () => {
@@ -53,26 +54,34 @@ export default function GameScreen() {
         isGameOver,
     } = useGameEngine(levelId, handleComplete);
 
-    // Freeze time display at completion
-    if (isComplete && finalTime.current === 0) {
-        finalTime.current = elapsedSeconds;
-    }
+    // Reset completion refs whenever level changes (or replay remounts this route)
+    useEffect(() => {
+        setFinalTime(0);
+        savedCompletion.current = false;
+    }, [levelId]);
+
+    // Freeze time display at first completion frame
+    useEffect(() => {
+        if (isComplete && finalTime === 0) {
+            setFinalTime(elapsedSeconds);
+        }
+    }, [isComplete, elapsedSeconds, finalTime]);
 
     const heartsUsed = 3 - hearts;
     const stars = getStars(hearts);
 
     // Persist completion stats (once)
     useEffect(() => {
-        if (isComplete && finalTime.current > 0 && !savedCompletion.current) {
+        if (isComplete && finalTime > 0 && !savedCompletion.current) {
             savedCompletion.current = true;
             saveCompletedLevel({
                 levelId,
-                time: finalTime.current,
+                time: finalTime,
                 heartsUsed: 3 - hearts,
                 stars,
             });
         }
-    }, [isComplete]);
+    }, [isComplete, hearts, levelId, stars, finalTime]);
 
     // Card entrance animation (shared by completion & game over overlays)
     const cardScale = useSharedValue(0.6);
@@ -91,7 +100,9 @@ export default function GameScreen() {
             <LevelHeader
                 levelId={levelId}
                 hearts={hearts}
-                elapsedSeconds={isComplete ? finalTime.current : elapsedSeconds}
+                elapsedSeconds={
+                    isComplete ? finalTime || elapsedSeconds : elapsedSeconds
+                }
                 arrowsRemaining={board.filter((t) => !t.removed).length}
             />
 
@@ -110,26 +121,85 @@ export default function GameScreen() {
                     <ConfettiOverlay visible={isComplete} />
                     <View
                         className="absolute inset-0 items-center justify-center"
-                        style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
+                        style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
                     >
                         <Animated.View
-                            className="mx-6 bg-white dark:bg-gray-800 rounded-3xl p-8 items-center shadow-2xl"
+                            className="mx-6 w-[85%] max-w-sm bg-white dark:bg-gray-800 rounded-[32px] p-8 items-center shadow-black/30 shadow-[0px_20px_40px_rgba(0,0,0,0.25)] border border-gray-100 dark:border-gray-700 overflow-hidden"
                             style={cardStyle}
                         >
+                            {/* Decorative background circle */}
+                            <View className="absolute -top-20 -right-20 w-40 h-40 bg-indigo-50 dark:bg-indigo-900/20 rounded-full" />
+                            <View className="absolute -bottom-20 -left-20 w-40 h-40 bg-pink-50 dark:bg-pink-900/20 rounded-full" />
+
                             {/* Stars */}
-                            <Text className="text-5xl mb-2">
-                                {Array.from({ length: 3 })
-                                    .map((_, i) => (i < stars ? "⭐" : "☆"))
-                                    .join("")}
+                            <View className="flex-row items-center justify-center gap-3 mb-6 mt-4">
+                                {Array.from({ length: 3 }).map((_, i) => (
+                                    <View
+                                        key={i}
+                                        className={`transform ${i === 1 ? "-translate-y-4" : ""}`}
+                                    >
+                                        <Ionicons
+                                            name={
+                                                i < stars
+                                                    ? "star"
+                                                    : "star-outline"
+                                            }
+                                            size={i === 1 ? 56 : 44}
+                                            color={
+                                                i < stars
+                                                    ? "#FBBF24"
+                                                    : "#D1D5DB"
+                                            }
+                                            style={
+                                                i < stars
+                                                    ? {
+                                                          textShadowColor:
+                                                              "rgba(251, 191, 36, 0.4)",
+                                                          textShadowOffset: {
+                                                              width: 0,
+                                                              height: 4,
+                                                          },
+                                                          textShadowRadius: 12,
+                                                      }
+                                                    : undefined
+                                            }
+                                        />
+                                    </View>
+                                ))}
+                            </View>
+
+                            <Text className="text-4xl font-black text-gray-900 dark:text-gray-100 mb-2 tracking-tight text-center">
+                                Level {levelId} {"\n"}
+                                <Text className="text-indigo-500">
+                                    Cleared!
+                                </Text>
                             </Text>
 
-                            <Text className="text-3xl font-black text-gray-900 dark:text-gray-100 mb-1 tracking-tight">
-                                Level {levelId} Done!
-                            </Text>
-                            <Text className="text-gray-400 dark:text-gray-500 text-base mb-6">
-                                🕐 {formatTime(finalTime.current)} · ❤️{" "}
-                                {heartsUsed} used
-                            </Text>
+                            {/* Stats */}
+                            <View className="flex-row gap-4 mb-8 mt-4 w-full justify-center">
+                                <View className="bg-gray-100 dark:bg-gray-700 px-4 py-2.5 rounded-2xl flex-row items-center gap-2 border border-gray-200 dark:border-gray-600">
+                                    <Ionicons
+                                        name="time"
+                                        size={20}
+                                        color="#818CF8"
+                                    />
+                                    <Text className="text-gray-700 dark:text-gray-300 font-bold text-base">
+                                        {formatTime(
+                                            finalTime || elapsedSeconds,
+                                        )}
+                                    </Text>
+                                </View>
+                                <View className="bg-gray-100 dark:bg-gray-700 px-4 py-2.5 rounded-2xl flex-row items-center gap-2 border border-gray-200 dark:border-gray-600">
+                                    <Ionicons
+                                        name="heart"
+                                        size={20}
+                                        color="#F87171"
+                                    />
+                                    <Text className="text-gray-700 dark:text-gray-300 font-bold text-base">
+                                        {heartsUsed} used
+                                    </Text>
+                                </View>
+                            </View>
 
                             {/* Primary action */}
                             <Pressable
@@ -138,13 +208,22 @@ export default function GameScreen() {
                                         ? router.replace("/completed-levels")
                                         : router.replace(`/game/${levelId + 1}`)
                                 }
-                                className="bg-indigo-500 active:bg-indigo-600 w-full py-4 rounded-2xl mb-3 items-center"
+                                className="bg-indigo-500 active:bg-indigo-600 w-full rounded-2xl mb-4 border-b-4 border-indigo-700 active:border-b-0 active:translate-y-[4px] py-4"
                             >
-                                <Text className="text-white font-bold text-lg px-4">
-                                    {isReplay
-                                        ? "← Completed Levels"
-                                        : "Next Level →"}
-                                </Text>
+                                <View className="flex-row items-center justify-center gap-2">
+                                    <Text className="text-white font-black text-lg tracking-wide uppercase">
+                                        {isReplay
+                                            ? "Completed Levels"
+                                            : "Next Level"}
+                                    </Text>
+                                    <Ionicons
+                                        name={
+                                            isReplay ? "list" : "arrow-forward"
+                                        }
+                                        size={24}
+                                        color="white"
+                                    />
+                                </View>
                             </Pressable>
 
                             {/* Replay */}
@@ -152,11 +231,18 @@ export default function GameScreen() {
                                 onPress={() =>
                                     router.replace(`/game/${levelId}`)
                                 }
-                                className="w-full py-3 rounded-2xl border border-gray-200 dark:border-gray-700 items-center"
+                                className="w-full py-4 rounded-2xl bg-gray-100 dark:bg-gray-800 border-b-4 border-gray-300 dark:border-gray-700 active:border-b-0 active:translate-y-[4px] active:bg-gray-200 dark:active:bg-gray-700"
                             >
-                                <Text className="text-gray-600 dark:text-gray-400 font-semibold text-base px-4">
-                                    Replay
-                                </Text>
+                                <View className="flex-row items-center justify-center gap-2">
+                                    <Ionicons
+                                        name="refresh"
+                                        size={22}
+                                        color="#6B7280"
+                                    />
+                                    <Text className="text-gray-700 dark:text-gray-300 font-bold text-base tracking-wide uppercase">
+                                        Replay
+                                    </Text>
+                                </View>
                             </Pressable>
                         </Animated.View>
                     </View>
@@ -166,37 +252,67 @@ export default function GameScreen() {
             {isGameOver && (
                 <View
                     className="absolute inset-0 items-center justify-center"
-                    style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
+                    style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
                 >
                     <Animated.View
-                        className="mx-6 bg-white dark:bg-gray-800 rounded-3xl p-8 items-center shadow-2xl"
+                        className="mx-6 w-[85%] max-w-sm bg-white dark:bg-gray-800 rounded-[32px] p-8 items-center shadow-black/30 shadow-[0px_20px_40px_rgba(0,0,0,0.3)] border border-gray-100 dark:border-gray-700 overflow-hidden"
                         style={cardStyle}
                     >
-                        <Text className="text-5xl mb-2">💔</Text>
+                        {/* Decorative background circles */}
+                        <View className="absolute -top-20 -right-20 w-40 h-40 bg-red-50 dark:bg-red-900/20 rounded-full" />
+                        <View className="absolute -bottom-20 -left-20 w-40 h-40 bg-red-50 dark:bg-red-900/20 rounded-full" />
 
-                        <Text className="text-3xl font-black text-gray-900 dark:text-gray-100 mb-1 tracking-tight">
+                        <View className="bg-red-100 dark:bg-red-900/40 p-5 rounded-full mb-6 mt-2">
+                            <Ionicons
+                                name="heart-half"
+                                size={56}
+                                color="#EF4444"
+                                style={{
+                                    textShadowColor: "rgba(239, 68, 68, 0.4)",
+                                    textShadowOffset: { width: 0, height: 4 },
+                                    textShadowRadius: 12,
+                                }}
+                            />
+                        </View>
+
+                        <Text className="text-4xl font-black text-gray-900 dark:text-gray-100 mb-2 tracking-tight">
                             Game Over
                         </Text>
-                        <Text className="text-gray-400 dark:text-gray-500 text-base mb-6">
-                            You ran out of hearts!
+                        <Text className="text-gray-500 dark:text-gray-400 text-base text-center mb-8 px-4 leading-6">
+                            You ran out of hearts!{"\n"}Don't give up, try
+                            again.
                         </Text>
 
                         <Pressable
                             onPress={resetLevel}
-                            className="bg-indigo-500 active:bg-indigo-600 w-full py-4 rounded-2xl mb-3 items-center"
+                            className="bg-red-500 active:bg-red-600 w-full rounded-2xl mb-4 border-b-4 border-red-700 active:border-b-0 active:translate-y-[4px] py-4"
                         >
-                            <Text className="text-white font-bold text-lg px-4">
-                                Try Again
-                            </Text>
+                            <View className="flex-row items-center justify-center gap-2">
+                                <Ionicons
+                                    name="refresh-circle"
+                                    size={26}
+                                    color="white"
+                                />
+                                <Text className="text-white font-black text-lg tracking-wide uppercase">
+                                    Try Again
+                                </Text>
+                            </View>
                         </Pressable>
 
                         <Pressable
                             onPress={() => router.replace("/")}
-                            className="w-full py-3 rounded-2xl border border-gray-200 dark:border-gray-700 items-center"
+                            className="w-full py-4 rounded-2xl bg-gray-100 dark:bg-gray-800 border-b-4 border-gray-300 dark:border-gray-700 active:border-b-0 active:translate-y-[4px] active:bg-gray-200 dark:active:bg-gray-700"
                         >
-                            <Text className="text-gray-600 dark:text-gray-400 font-semibold text-base px-4">
-                                Back to Home
-                            </Text>
+                            <View className="flex-row items-center justify-center gap-2">
+                                <Ionicons
+                                    name="home"
+                                    size={20}
+                                    color="#6B7280"
+                                />
+                                <Text className="text-gray-700 dark:text-gray-300 font-bold text-base tracking-wide uppercase">
+                                    Back to Home
+                                </Text>
+                            </View>
                         </Pressable>
                     </Animated.View>
                 </View>

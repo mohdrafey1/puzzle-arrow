@@ -87,8 +87,7 @@ export function useSfx() {
         const sound = sounds.current[type];
         if (!sound) return;
         try {
-            const vol = await getSfxVolume();
-            await sound.setVolumeAsync(vol);
+            await sound.setVolumeAsync(volume.current);
             await sound.setPositionAsync(0);
             await sound.playAsync();
         } catch {
