@@ -1,25 +1,82 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Audio } from "expo-av";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useColorScheme } from "nativewind";
-import { useCallback, useState } from "react";
-import { Alert, Pressable, Switch, Text, TextInput, View } from "react-native";
+import { useCallback, useRef, useState } from "react";
 import {
+    Alert,
+    Pressable,
+    ScrollView,
+    Switch,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
+import { AUDIO_MAP } from "../../hooks/useSfx";
+import {
+    DEFAULT_SFX_SELECTION,
     getHapticsEnabled,
+    getSfxEnabled,
+    getSfxSelection,
+    getSfxVolume,
     resetProgress,
     setHapticsEnabled,
+    setSfxEnabled,
+    setSfxSelection,
+    setSfxVolume,
     setThemePreference,
+    SfxSelection,
 } from "../../utils/storage";
+
+const SFX_OPTIONS: Record<
+    keyof SfxSelection,
+    { label: string; files: { name: string; label: string }[] }
+> = {
+    arrowout: {
+        label: "Arrow Out",
+        files: [
+            { name: "none", label: "Off" },
+            { name: "default_swoosh.mp3", label: "Swoosh" },
+            { name: "pop.mp3", label: "Pop" },
+        ],
+    },
+    gameover: {
+        label: "Game Over",
+        files: [
+            { name: "none", label: "Off" },
+            { name: "default_boo.mp3", label: "Boo" },
+            { name: "koshish_karna.m4a", label: "Koshish Karna" },
+            { name: "libas_badlega.m4a", label: "Libas Badlega" },
+        ],
+    },
+    gamewin: {
+        label: "Game Win",
+        files: [
+            { name: "none", label: "Off" },
+            { name: "clapping_default.m4a", label: "Clapping" },
+            { name: "sabash_beta.m4a", label: "Sabash Beta" },
+            { name: "well_done.m4a", label: "Well Done" },
+        ],
+    },
+};
 
 export default function MeSettings() {
     const { colorScheme, setColorScheme } = useColorScheme();
     const isDark = colorScheme === "dark";
     const [hapticsOn, setHapticsOn] = useState(true);
+    const [sfxOn, setSfxOn] = useState(true);
+    const [sfxSel, setSfxSel] = useState<SfxSelection>(DEFAULT_SFX_SELECTION);
+    const [sfxVolume, setSfxVolumeState] = useState(0.5);
     const [testLevel, setTestLevel] = useState("");
     const router = useRouter();
+    const activePreviewSound = useRef<Audio.Sound | null>(null);
 
     useFocusEffect(
         useCallback(() => {
             getHapticsEnabled().then(setHapticsOn);
+            getSfxEnabled().then(setSfxOn);
+            getSfxSelection().then(setSfxSel);
+            getSfxVolume().then(setSfxVolumeState);
         }, []),
     );
 
@@ -52,8 +109,62 @@ export default function MeSettings() {
         setHapticsEnabled(val);
     };
 
+    const toggleSfx = (val: boolean) => {
+        setSfxOn(val);
+        setSfxEnabled(val);
+    };
+
+    const updateSfxChoice = async (
+        category: keyof SfxSelection,
+        file: string,
+    ) => {
+        const next = { ...sfxSel, [category]: file };
+        setSfxSel(next);
+        setSfxSelection(next);
+
+        // Play preview
+        if (file !== "none") {
+            try {
+                // Stop previous preview if still playing
+                if (activePreviewSound.current) {
+                    await activePreviewSound.current.unloadAsync();
+                    activePreviewSound.current = null;
+                }
+
+                const source = AUDIO_MAP[file];
+                if (source) {
+                    const { sound } = await Audio.Sound.createAsync(source);
+                    activePreviewSound.current = sound;
+
+                    await sound.setVolumeAsync(sfxVolume);
+                    await sound.playAsync();
+
+                    sound.setOnPlaybackStatusUpdate((status) => {
+                        if (status.isLoaded && status.didJustFinish) {
+                            sound.unloadAsync();
+                            if (activePreviewSound.current === sound) {
+                                activePreviewSound.current = null;
+                            }
+                        }
+                    });
+                }
+            } catch {
+                // skip preview on error
+            }
+        }
+    };
+
+    const adjustVolume = (delta: number) => {
+        const next = Math.min(
+            1,
+            Math.max(0, Math.round((sfxVolume + delta) * 10) / 10),
+        );
+        setSfxVolumeState(next);
+        setSfxVolume(next);
+    };
+
     return (
-        <View className="flex-1 bg-gray-100 dark:bg-gray-900 p-6 pt-16">
+        <ScrollView className="flex-1 bg-gray-100 dark:bg-gray-900 p-6 pt-16">
             <Text className="text-3xl font-black text-gray-900 dark:text-gray-100 mb-8">
                 Settings
             </Text>
@@ -98,6 +209,63 @@ export default function MeSettings() {
                         thumbColor="#FFFFFF"
                     />
                 </View>
+
+                {/* Sound Effects */}
+                <View className="flex-row items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700">
+                    <View className="flex-row items-center gap-3">
+                        <Ionicons
+                            name="volume-high"
+                            size={20}
+                            className="text-gray-600 dark:text-gray-400"
+                        />
+                        <Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            Sound Effects
+                        </Text>
+                    </View>
+                    <Switch
+                        value={sfxOn}
+                        onValueChange={toggleSfx}
+                        trackColor={{ false: "#E5E7EB", true: "#6366F1" }}
+                        thumbColor="#FFFFFF"
+                    />
+                </View>
+
+                {/* SFX Volume */}
+                {sfxOn && (
+                    <View className="flex-row items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700">
+                        <View className="flex-row items-center gap-3">
+                            <Ionicons
+                                name="options"
+                                size={20}
+                                className="text-gray-600 dark:text-gray-400"
+                            />
+                            <Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                Volume
+                            </Text>
+                        </View>
+                        <View className="flex-row items-center gap-3">
+                            <Pressable
+                                onPress={() => adjustVolume(-0.1)}
+                                className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 items-center justify-center active:bg-gray-300 dark:active:bg-gray-600"
+                            >
+                                <Text className="text-gray-700 dark:text-gray-300 font-bold text-lg">
+                                    −
+                                </Text>
+                            </Pressable>
+                            <Text className="text-base font-bold text-indigo-500 w-12 text-center">
+                                {Math.round(sfxVolume * 100)}%
+                            </Text>
+                            <Pressable
+                                onPress={() => adjustVolume(0.1)}
+                                className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 items-center justify-center active:bg-gray-300 dark:active:bg-gray-600"
+                            >
+                                <Text className="text-gray-700 dark:text-gray-300 font-bold text-lg">
+                                    +
+                                </Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                )}
 
                 {/* Completed Levels */}
                 <Pressable
@@ -165,12 +333,70 @@ export default function MeSettings() {
                 </Pressable>
             </View>
 
+            {/* Sound Selection */}
+            {sfxOn && (
+                <View className="bg-white dark:bg-gray-800 rounded-3xl overflow-hidden mb-8 shadow-sm border border-gray-100 dark:border-gray-800">
+                    <View className="p-5 border-b border-gray-100 dark:border-gray-700">
+                        <Text className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-1">
+                            🔊 Sound Selection
+                        </Text>
+                        <Text className="text-sm text-gray-400">
+                            Choose sounds for each event
+                        </Text>
+                    </View>
+                    {(Object.keys(SFX_OPTIONS) as (keyof SfxSelection)[]).map(
+                        (category) => (
+                            <View
+                                key={category}
+                                className="p-5 border-b border-gray-100 dark:border-gray-700"
+                            >
+                                <Text className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wide">
+                                    {SFX_OPTIONS[category].label}
+                                </Text>
+                                <View className="flex-row flex-wrap gap-2">
+                                    {SFX_OPTIONS[category].files.map((file) => {
+                                        const isSelected =
+                                            sfxSel[category] === file.name;
+                                        return (
+                                            <Pressable
+                                                key={file.name}
+                                                onPress={() =>
+                                                    updateSfxChoice(
+                                                        category,
+                                                        file.name,
+                                                    )
+                                                }
+                                                className={`px-4 py-2 rounded-full border ${
+                                                    isSelected
+                                                        ? "bg-indigo-500 border-indigo-500"
+                                                        : "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600"
+                                                }`}
+                                            >
+                                                <Text
+                                                    className={`text-sm font-semibold ${
+                                                        isSelected
+                                                            ? "text-white"
+                                                            : "text-gray-700 dark:text-gray-300"
+                                                    }`}
+                                                >
+                                                    {file.label}
+                                                </Text>
+                                            </Pressable>
+                                        );
+                                    })}
+                                </View>
+                            </View>
+                        ),
+                    )}
+                </View>
+            )}
+
             <Text className="text-center text-gray-400 text-sm font-medium uppercase tracking-widest">
                 Puzzle Arrow
             </Text>
-            <Text className="text-center text-gray-400 text-xs mt-1">
+            <Text className="text-center text-gray-400 text-xs mt-1 mb-8">
                 Version 1.0.0
             </Text>
-        </View>
+        </ScrollView>
     );
 }

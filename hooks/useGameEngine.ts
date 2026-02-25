@@ -7,6 +7,7 @@ import {
     getHapticsEnabled,
     setCachedLevel,
 } from "../utils/storage";
+import { useSfx } from "./useSfx";
 
 function buildBoard(
     tiles: Omit<TileData, "id">[],
@@ -50,6 +51,7 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
     const animationLock = useRef(false);
     const hapticsEnabled = useRef(true);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const { playSfx } = useSfx();
 
     // ── Keep stable refs so handleTap never needs state in deps ──
     const boardRef = useRef<TileData[]>(board);
@@ -141,6 +143,7 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
                 );
                 if (next.every((t) => t.removed)) {
                     haptic("success");
+                    playSfx("gamewin");
                     setIsComplete(true);
                     setTimeout(onLevelComplete, 500);
                 }
@@ -184,6 +187,7 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
 
             if (canMove(tile, boardRef.current, levelDataRef.current.size)) {
                 haptic("light");
+                playSfx("arrowout");
                 onExitAnimation();
                 setTimeout(() => {
                     // Eagerly update ref so the next tap sees the removal immediately
@@ -201,6 +205,7 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
                     const next = prev - 1;
                     if (next <= 0) {
                         setTimeout(() => {
+                            playSfx("gameover");
                             setIsGameOver(true);
                             animationLock.current = false;
                         }, 500);
@@ -213,7 +218,7 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
                 });
             }
         },
-        [haptic], // ← only haptic in deps — board/hearts read from refs
+        [haptic, playSfx], // ← only haptic + playSfx in deps — board/hearts read from refs
     );
 
     return {
