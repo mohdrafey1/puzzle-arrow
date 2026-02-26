@@ -182,17 +182,24 @@ function tryGenerateBackward(
 }
 
 export function generateLevel(id: number): LevelData {
-    // The grid grows faster to allow massive 16+ length snakes early on
-    const size = Math.min(6 + Math.floor((id - 1) / 4), 20);
+    // 50 levels per round (10 shapes * 5 levels each)
+    const round = Math.floor((id - 1) / 50);
+    const levelInShape = (id - 1) % 5;
+
+    // First round base is 6. Second round base is 11, etc.
+    const baseSize = 6 + round * 5;
+    // Grid size increases by 1 each level inside the 5-level shape block
+    const calculatedSize = baseSize + levelInShape;
+    // Cap at 25 to prevent unplayable density
+    const size = Math.min(calculatedSize, 25);
 
     const shapeName = getShapeForLevel(id);
     const shape = generateShapeMask(shapeName, size);
     const activeCellCount = countActiveCells(shape);
 
-    // Drastically increased snake lengths as requested by user!
-    // At level 15: minLen=5, maxLen=16
-    const minLen = Math.min(2 + Math.floor((id - 1) / 4), 8);
-    const maxLen = Math.min(minLen + 4 + Math.floor((id - 1) / 2), 20);
+    // Mixture of all lengths: allows short (2) up to very long arrows in every single level
+    const minLen = 2;
+    const maxLen = Math.min(size + 5, 20);
 
     let bestResult: Omit<TileData, "id">[] = [];
     let bestFill = 0;
