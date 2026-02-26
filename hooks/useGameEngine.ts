@@ -1,12 +1,9 @@
 import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { generateLevel, LEVEL_VERSION, LevelData } from "../constants/levels";
+import { getStaticLevel } from "../assets/levels";
+import { generateLevel, LevelData, restoreShape } from "../constants/levels";
 import { canMove, TileData } from "../utils/movement";
-import {
-    getCachedLevel,
-    getHapticsEnabled,
-    setCachedLevel,
-} from "../utils/storage";
+import { getHapticsEnabled } from "../utils/storage";
 import { useSfx } from "./useSfx";
 
 function buildBoard(
@@ -22,20 +19,21 @@ function buildBoard(
         .reverse();
 }
 
-async function loadLevel(levelId: number): Promise<LevelData> {
-    const cached = (await getCachedLevel(
-        levelId,
-        LEVEL_VERSION,
-    )) as LevelData | null;
-    if (cached) return cached;
-    const fresh = generateLevel(levelId);
-    await setCachedLevel(levelId, LEVEL_VERSION, fresh);
-    return fresh;
+function getLevelData(levelId: number): LevelData {
+    const raw = getStaticLevel(levelId);
+    if (raw) {
+        return {
+            ...raw,
+            shape: restoreShape(levelId, raw.size),
+        };
+    }
+    // Fallback to dynamic generation for levels beyond the static bundle
+    return generateLevel(levelId);
 }
 
 export function useGameEngine(levelId: number, onLevelComplete: () => void) {
     const [levelData, setLevelData] = useState<LevelData>(() =>
-        generateLevel(levelId),
+        getLevelData(levelId),
     );
     const [attemptCount, setAttemptCount] = useState(0);
     const [board, setBoard] = useState<TileData[]>(() =>
@@ -61,11 +59,8 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
         levelDataRef.current = levelData;
     }, [levelData]);
 
-    // Load level from cache async
+    // Fast synchronous level load when levelId changes
     useEffect(() => {
-        let cancelled = false;
-
-        // Immediately reset gameplay state when switching levels.
         setIsComplete(false);
         setIsGameOver(false);
         setIsResetting(false);
@@ -73,28 +68,14 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
         setHearts(3);
         setElapsedSeconds(0);
 
-        // Show deterministic fallback board immediately to avoid stale prior-level UI.
-        const fallback = generateLevel(levelId);
-        setLevelData(fallback);
-        levelDataRef.current = fallback;
+        const data = getLevelData(levelId);
+        setLevelData(data);
+        levelDataRef.current = data;
         setAttemptCount(0);
-        const fallbackBoard = buildBoard(fallback.tiles, levelId, 0);
-        boardRef.current = fallbackBoard;
-        setBoard(fallbackBoard);
 
-        loadLevel(levelId).then((data) => {
-            if (cancelled) return;
-            setLevelData(data);
-            levelDataRef.current = data;
-            setAttemptCount(0);
-            const newBoard = buildBoard(data.tiles, levelId, 0);
-            boardRef.current = newBoard;
-            setBoard(newBoard);
-        });
-
-        return () => {
-            cancelled = true;
-        };
+        const newBoard = buildBoard(data.tiles, levelId, 0);
+        boardRef.current = newBoard;
+        setBoard(newBoard);
     }, [levelId]);
 
     // Load haptics preference
@@ -210,7 +191,14 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
             animationLock.current = true;
             setErrorTileId(null);
 
-            if (canMove(tile, boardRef.current, levelDataRef.current.size)) {
+            if (
+                canMove(
+                    tile,
+                    boardRef.current,
+                    levelDataRef.current.size,
+                    levelDataRef.current.shape,
+                )
+            ) {
                 haptic("light");
                 playSfx("arrowout");
                 onExitAnimation();

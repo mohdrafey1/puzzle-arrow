@@ -1,105 +1,145 @@
-import { Point, TileData } from "../utils/movement";
+import { Direction, Point, TileData } from "../utils/movement";
+import {
+    countActiveCells,
+    generateShapeMask,
+    getShapeForLevel,
+} from "./shapes";
 
 export interface LevelData {
     id: number;
     size: number;
     tiles: Omit<TileData, "id">[];
+    shape: boolean[][]; // which cells are active
 }
-
-// Bump this when changing the grid formula to invalidate cached levels
-const LEVEL_VERSION = 5;
 
 import seedrandom from "seedrandom";
 
-export function generateLevel(id: number): LevelData {
-    const rng = seedrandom(id.toString());
-
-    const size = Math.min(6 + Math.floor((id - 1) / 5), 20);
-
+// ── Backward Level Generation ──────────────────────────────────────────
+// We generate the board BACKWARDS from a solved state.
+// We place snakes on the board one by one. Each snake must have a clear
+// "exit path" to the board edge AT THE MOMENT we place it.
+// Because it's placed later in reverse-time, it means in forward-gameplay
+// it will be removed EARLIER. Therefore, its exit path must be clear of
+// currently-placed snakes, but its BODY can safely block currently-placed snakes!
+// This mathematically guarantees 100% solvability no matter how tangled they get.
+function tryGenerateBackward(
+    rng: () => number,
+    size: number,
+    shape: boolean[][],
+    activeCellCount: number,
+    minLen: number,
+    maxLen: number,
+): { tiles: Omit<TileData, "id">[]; filled: number } {
     const occupied = Array(size)
         .fill(0)
         .map(() => Array(size).fill(false));
-    const tiles: Omit<TileData, "id">[] = [];
-    const DIRS = ["up", "down", "left", "right"] as const;
 
-    const getEmptyCells = (): Point[] => {
-        const empty: Point[] = [];
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            if (!shape[y][x]) occupied[y][x] = true;
+        }
+    }
+
+    const DIRS: Direction[] = ["up", "down", "left", "right"];
+    const tiles: { path: Point[]; direction: Direction }[] = [];
+
+    let attemptsWithoutPlacement = 0;
+    const maxAttempts = 100 + activeCellCount * 2;
+
+    while (attemptsWithoutPlacement < maxAttempts) {
+        const emptyCells: Point[] = [];
         for (let y = 0; y < size; y++) {
             for (let x = 0; x < size; x++) {
-                if (!occupied[y][x]) empty.push({ x, y });
+                if (!occupied[y][x]) emptyCells.push({ x, y });
             }
         }
-        return empty;
-    };
-
-    const maxAttempts = size * size * 4;
-
-    // Reverse generation to guarantee exactly 1 solvable state
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const emptyCells = getEmptyCells();
         if (emptyCells.length === 0) break;
 
         const head = emptyCells[Math.floor(rng() * emptyCells.length)];
 
+        // Valid exit ray: ray must reach shape boundary WITHOUT hitting any occupied cell.
         const validDirs = DIRS.filter((dir) => {
-            let cx = head.x,
-                cy = head.y;
-            while (cx >= 0 && cx < size && cy >= 0 && cy < size) {
+            const dirX = dir === "right" ? 1 : dir === "left" ? -1 : 0;
+            const dirY = dir === "down" ? 1 : dir === "up" ? -1 : 0;
+            let cx = head.x + dirX;
+            let cy = head.y + dirY;
+            while (
+                cx >= 0 &&
+                cx < size &&
+                cy >= 0 &&
+                cy < size &&
+                shape[cy][cx]
+            ) {
                 if (occupied[cy][cx]) return false;
-                if (dir === "up") cy--;
-                else if (dir === "down") cy++;
-                else if (dir === "left") cx--;
-                else if (dir === "right") cx++;
+                cx += dirX;
+                cy += dirY;
             }
             return true;
         });
 
-        if (validDirs.length === 0) continue;
+        if (validDirs.length === 0) {
+            attemptsWithoutPlacement++;
+            continue;
+        }
 
         const dir = validDirs[Math.floor(rng() * validDirs.length)];
 
-        const ray: Point[] = [];
-        let cx = head.x,
-            cy = head.y;
-        while (cx >= 0 && cx < size && cy >= 0 && cy < size) {
-            if (cx !== head.x || cy !== head.y) ray.push({ x: cx, y: cy });
-            if (dir === "up") cy--;
-            else if (dir === "down") cy++;
-            else if (dir === "left") cx--;
-            else if (dir === "right") cx++;
+        // Temporarily reserve the exit ray so the snake's body doesn't cross its own escape path
+        const rayCells: Point[] = [];
+        const dirX = dir === "right" ? 1 : dir === "left" ? -1 : 0;
+        const dirY = dir === "down" ? 1 : dir === "up" ? -1 : 0;
+        let rx = head.x + dirX;
+        let ry = head.y + dirY;
+        while (rx >= 0 && rx < size && ry >= 0 && ry < size) {
+            // We mark all cells in the ray as occupied to act as a wall
+            if (!occupied[ry][rx]) {
+                occupied[ry][rx] = true;
+                rayCells.push({ x: rx, y: ry });
+            }
+            rx += dirX;
+            ry += dirY;
         }
 
+        // Build snake body, walking into available empty cells
+        const targetLen = Math.floor(rng() * (maxLen - minLen + 1)) + minLen;
         const path: Point[] = [head];
         let curr = head;
-        const targetLen = Math.floor(rng() * 6) + 2;
+
+        const opposite: Record<Direction, Direction> = {
+            up: "down",
+            down: "up",
+            left: "right",
+            right: "left",
+        };
 
         for (let i = 1; i < targetLen; i++) {
-            let possibleMoves = [
-                { x: curr.x, y: curr.y - 1, d: "up" },
-                { x: curr.x, y: curr.y + 1, d: "down" },
-                { x: curr.x - 1, y: curr.y, d: "left" },
-                { x: curr.x + 1, y: curr.y, d: "right" },
+            let possible = [
+                { x: curr.x, y: curr.y - 1, d: "up" as Direction },
+                { x: curr.x, y: curr.y + 1, d: "down" as Direction },
+                { x: curr.x - 1, y: curr.y, d: "left" as Direction },
+                { x: curr.x + 1, y: curr.y, d: "right" as Direction },
             ];
 
             if (i === 1) {
-                const opposite = {
-                    up: "down",
-                    down: "up",
-                    left: "right",
-                    right: "left",
-                }[dir];
-                possibleMoves = possibleMoves.filter((m) => m.d === opposite);
+                // First body segment MUST grow away from the exit direction.
+                const opp = opposite[dir];
+                const oppMoves = possible.filter((m) => m.d === opp);
+                if (oppMoves.length > 0) {
+                    possible = oppMoves;
+                } else {
+                    possible = possible.filter((m) => m.d !== dir);
+                }
             }
 
-            const neighbors = possibleMoves.filter(
+            const neighbors = possible.filter(
                 (n) =>
                     n.x >= 0 &&
                     n.x < size &&
                     n.y >= 0 &&
                     n.y < size &&
                     !occupied[n.y][n.x] &&
-                    !path.some((p) => p.x === n.x && p.y === n.y) &&
-                    !ray.some((r) => r.x === n.x && r.y === n.y),
+                    shape[n.y][n.x] &&
+                    !path.some((p) => p.x === n.x && p.y === n.y),
             );
 
             if (neighbors.length === 0) break;
@@ -108,13 +148,107 @@ export function generateLevel(id: number): LevelData {
             path.push(curr);
         }
 
-        path.reverse();
-        path.forEach((p) => (occupied[p.y][p.x] = true));
+        // Unreserve the exit ray
+        rayCells.forEach((p) => {
+            occupied[p.y][p.x] = false;
+        });
 
-        tiles.push({ path, direction: dir });
+        // Strictly enforce minimum lengths to avoid 1-length arrow flooding!
+        // Only accept short paths if we are truly desperate and the board is largely empty
+        // Wait, NO! If we want to guarantee NO short arrows, we strictly enforce it.
+        // During the last few attempts, we can allow slightly shorter arrows (e.g. minLen/2)
+        // just to fill tiny gaps, but NEVER 1-length.
+        const allowedMinLen =
+            attemptsWithoutPlacement > maxAttempts * 0.8
+                ? Math.max(2, Math.floor(minLen / 2))
+                : minLen;
+
+        if (path.length >= allowedMinLen || path.length === targetLen) {
+            // Found a valid snake
+            path.reverse(); // so tail is at start of array, head at end
+            path.forEach((p) => (occupied[p.y][p.x] = true));
+            tiles.push({ path, direction: dir });
+            attemptsWithoutPlacement = 0; // reset
+        } else {
+            attemptsWithoutPlacement++;
+        }
     }
 
-    return { id, size, tiles };
+    const filledCount = tiles.reduce((sum, t) => sum + t.path.length, 0);
+    return {
+        tiles: tiles.reverse(), // reverse so first generated (removed last) is placed early in array
+        filled: filledCount / activeCellCount,
+    };
 }
 
-export { LEVEL_VERSION };
+export function generateLevel(id: number): LevelData {
+    // The grid grows faster to allow massive 16+ length snakes early on
+    const size = Math.min(6 + Math.floor((id - 1) / 4), 20);
+
+    const shapeName = getShapeForLevel(id);
+    const shape = generateShapeMask(shapeName, size);
+    const activeCellCount = countActiveCells(shape);
+
+    // Drastically increased snake lengths as requested by user!
+    // At level 15: minLen=5, maxLen=16
+    const minLen = Math.min(2 + Math.floor((id - 1) / 4), 8);
+    const maxLen = Math.min(minLen + 4 + Math.floor((id - 1) / 2), 20);
+
+    let bestResult: Omit<TileData, "id">[] = [];
+    let bestFill = 0;
+
+    // Backward generation is instant, so we can try generating 30 times
+    // and just pick the instance that packed the board the tightest!
+    // No more endless 1-length backfills.
+    for (let seedOffset = 0; seedOffset < 30; seedOffset++) {
+        const rng = seedrandom(`${id}_backward_v8_${seedOffset}`);
+        const result = tryGenerateBackward(
+            rng,
+            size,
+            shape,
+            activeCellCount,
+            minLen,
+            maxLen,
+        );
+
+        if (result.filled > bestFill) {
+            bestFill = result.filled;
+            bestResult = result.tiles;
+        }
+
+        // If we filled 90% of the board with long snakes, that's incredibly good, just ship it!
+        if (bestFill >= 0.9) break;
+    }
+
+    // Fallback: simpler generation for extreme edge cases like Level 1 where size is 6 and minLen is 2
+    if (bestResult.length === 0) {
+        const rng = seedrandom(`${id}_fallback`);
+        const fallback = generateSimpleFallback(rng, size, shape);
+        return { id, size, tiles: fallback, shape };
+    }
+
+    return { id, size, tiles: bestResult, shape };
+}
+
+// Very simple 1-length fallback for level 1 edge cases if everything fails
+function generateSimpleFallback(
+    rng: () => number,
+    size: number,
+    shape: boolean[][],
+): Omit<TileData, "id">[] {
+    const tiles: Omit<TileData, "id">[] = [];
+    const DIRS: Direction[] = ["up", "down", "left", "right"];
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            if (shape[y][x]) {
+                const dir = DIRS[Math.floor(rng() * DIRS.length)];
+                tiles.push({ path: [{ x, y }], direction: dir });
+            }
+        }
+    }
+    return tiles;
+}
+
+export function restoreShape(levelId: number, size: number): boolean[][] {
+    return generateShapeMask(getShapeForLevel(levelId), size);
+}

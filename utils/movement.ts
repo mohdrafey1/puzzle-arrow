@@ -14,12 +14,13 @@ export interface TileData {
 
 /**
  * Checks if a tile can completely slide out of the board without its head ray hitting any other cells.
- * Uses a Set for O(1) cell occupancy lookups.
+ * Cells outside the shape mask (if provided) are treated as exits.
  */
 export function canMove(
     tile: TileData,
     board: TileData[],
     boardSize: number,
+    shape?: boolean[][],
 ): boolean {
     // Build a 2D boolean array of occupied cells from all other active tiles
     const occupied = Array(boardSize)
@@ -47,6 +48,11 @@ export function canMove(
 
         // Out of bounds — clear path
         if (cx < 0 || cx >= boardSize || cy < 0 || cy >= boardSize) {
+            break;
+        }
+
+        // Outside shape mask — also counts as exit
+        if (shape && !shape[cy]?.[cx]) {
             break;
         }
 

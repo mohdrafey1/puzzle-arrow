@@ -1,12 +1,12 @@
 import { useColorScheme } from "nativewind";
-import React, { useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import { Dimensions, Pressable, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
     useAnimatedStyle,
     useSharedValue,
 } from "react-native-reanimated";
-import Svg, { Circle, ClipPath, Defs, G, Rect } from "react-native-svg";
+import Svg, { ClipPath, Defs, G, Path, Rect } from "react-native-svg";
 import { TileData } from "../utils/movement";
 import { ArrowTile, ArrowTileRef } from "./ArrowTile";
 
@@ -15,6 +15,7 @@ const { width } = Dimensions.get("window");
 interface GameBoardProps {
     board: TileData[];
     boardSize: number;
+    shape: boolean[][];
     onTap: (tile: TileData, onExitAnimation: () => void) => void;
     isResetting: boolean;
     errorTileId: string | null;
@@ -23,6 +24,7 @@ interface GameBoardProps {
 export function GameBoard({
     board,
     boardSize,
+    shape,
     onTap,
     isResetting,
     errorTileId,
@@ -81,15 +83,27 @@ export function GameBoard({
     // Track tile refs for imperative animations
     const tileRefs = useRef<Record<string, ArrowTileRef | null>>({});
 
-    // Virtual cell matrix grid to capture taps exactly over cell indices instead of complex SVG hits
-    const cells = [];
-    for (let y = 0; y < boardSize; y++) {
-        for (let x = 0; x < boardSize; x++) {
-            cells.push({ x, y });
+    // Build a single SVG path for all dots (only active shape cells)
+    const dotsPath = useMemo(() => {
+        const parts: string[] = [];
+        for (let y = 0; y < boardSize; y++) {
+            for (let x = 0; x < boardSize; x++) {
+                if (!shape[y]?.[x]) continue;
+                const cx = x * cellSize + cellSize / 2;
+                const cy = y * cellSize + cellSize / 2;
+                // Small circle as arc path (radius 1.5)
+                parts.push(
+                    `M ${cx - 1.5},${cy} a 1.5,1.5 0 1,0 3,0 a 1.5,1.5 0 1,0 -3,0`,
+                );
+            }
         }
-    }
+        return parts.join(" ");
+    }, [boardSize, cellSize, shape]);
 
     const handleTapCell = (x: number, y: number) => {
+        // Ignore taps on inactive cells
+        if (!shape[y]?.[x]) return;
+
         // Find highest z-index path that occupies this cell
         // Prioritize tapping the actual "head" of an arrow over intersecting paths
         const reversedBoard = [...board].reverse();
@@ -147,15 +161,8 @@ export function GameBoard({
                                     />
                                 </ClipPath>
                             </Defs>
-                            {cells.map((c) => (
-                                <Circle
-                                    key={`dot-${c.x}-${c.y}`}
-                                    cx={c.x * cellSize + cellSize / 2}
-                                    cy={c.y * cellSize + cellSize / 2}
-                                    r={1}
-                                    fill={dotColor}
-                                />
-                            ))}
+                            {/* Single batched path for all dots — replaces N×N Circle elements */}
+                            <Path d={dotsPath} fill={dotColor} />
                             <G clipPath="url(#boardClip)">
                                 {board.map((tile) => (
                                     <ArrowTile
@@ -173,29 +180,32 @@ export function GameBoard({
                             </G>
                         </Svg>
 
-                        {/** Invisible absolutely positioned touch grid map overlays */}
-                        <View
+                        {/** Single touch handler — replaces N×N Pressable components */}
+                        <Pressable
                             style={{
                                 position: "absolute",
                                 top: 0,
                                 left: 0,
                                 right: 0,
                                 bottom: 0,
-                                flexWrap: "wrap",
-                                flexDirection: "row",
                             }}
-                        >
-                            {cells.map((c) => (
-                                <Pressable
-                                    key={`${c.x}-${c.y}`}
-                                    onPress={() => handleTapCell(c.x, c.y)}
-                                    style={{
-                                        width: cellSize,
-                                        height: cellSize,
-                                    }}
-                                />
-                            ))}
-                        </View>
+                            onPress={(e) => {
+                                const x = Math.floor(
+                                    e.nativeEvent.locationX / cellSize,
+                                );
+                                const y = Math.floor(
+                                    e.nativeEvent.locationY / cellSize,
+                                );
+                                if (
+                                    x >= 0 &&
+                                    x < boardSize &&
+                                    y >= 0 &&
+                                    y < boardSize
+                                ) {
+                                    handleTapCell(x, y);
+                                }
+                            }}
+                        />
                     </View>
                 </Animated.View>
             </GestureDetector>

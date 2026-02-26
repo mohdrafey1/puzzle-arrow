@@ -110,6 +110,7 @@ export default function GameScreen() {
                 <GameBoard
                     board={board}
                     boardSize={levelData.size}
+                    shape={levelData.shape}
                     onTap={handleTap}
                     isResetting={isResetting}
                     errorTileId={errorTileId}
