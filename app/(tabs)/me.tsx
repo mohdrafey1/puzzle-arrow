@@ -124,30 +124,25 @@ export default function MeSettings() {
         setSfxSelection(next);
 
         // Play preview
+        // Always stop any currently playing preview first
+        if (activePreviewSound.current) {
+            try {
+                activePreviewSound.current.pause();
+                activePreviewSound.current.remove();
+            } catch {
+                // ignore cleanup errors
+            }
+            activePreviewSound.current = null;
+        }
+
         if (file !== "none") {
             try {
-                // Stop previous preview if still playing
-                if (activePreviewSound.current) {
-                    activePreviewSound.current.remove();
-                    activePreviewSound.current = null;
-                }
-
                 const source = AUDIO_MAP[file];
                 if (source) {
                     const player = createAudioPlayer(source);
                     activePreviewSound.current = player;
-
                     player.volume = sfxVolume;
                     player.play();
-
-                    player.addListener("playbackStatusUpdate", (status) => {
-                        if (status.isLoaded && status.didJustFinish) {
-                            player.remove();
-                            if (activePreviewSound.current === player) {
-                                activePreviewSound.current = null;
-                            }
-                        }
-                    });
                 }
             } catch {
                 // skip preview on error
@@ -167,6 +162,7 @@ export default function MeSettings() {
     useEffect(() => {
         return () => {
             if (activePreviewSound.current) {
+                activePreviewSound.current.pause();
                 activePreviewSound.current.remove();
                 activePreviewSound.current = null;
             }
@@ -175,6 +171,7 @@ export default function MeSettings() {
 
     useEffect(() => {
         if (!sfxOn && activePreviewSound.current) {
+            activePreviewSound.current.pause();
             activePreviewSound.current.remove();
             activePreviewSound.current = null;
         }
