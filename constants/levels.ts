@@ -7,9 +7,13 @@ export interface LevelData {
 }
 
 // Bump this when changing the grid formula to invalidate cached levels
-const LEVEL_VERSION = 4;
+const LEVEL_VERSION = 5;
+
+import seedrandom from "seedrandom";
 
 export function generateLevel(id: number): LevelData {
+    const rng = seedrandom(id.toString());
+
     const size = Math.min(6 + Math.floor((id - 1) / 5), 20);
 
     const occupied = Array(size)
@@ -35,7 +39,7 @@ export function generateLevel(id: number): LevelData {
         const emptyCells = getEmptyCells();
         if (emptyCells.length === 0) break;
 
-        const head = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+        const head = emptyCells[Math.floor(rng() * emptyCells.length)];
 
         const validDirs = DIRS.filter((dir) => {
             let cx = head.x,
@@ -52,7 +56,7 @@ export function generateLevel(id: number): LevelData {
 
         if (validDirs.length === 0) continue;
 
-        const dir = validDirs[Math.floor(Math.random() * validDirs.length)];
+        const dir = validDirs[Math.floor(rng() * validDirs.length)];
 
         const ray: Point[] = [];
         let cx = head.x,
@@ -67,7 +71,7 @@ export function generateLevel(id: number): LevelData {
 
         const path: Point[] = [head];
         let curr = head;
-        const targetLen = Math.floor(Math.random() * 6) + 2;
+        const targetLen = Math.floor(rng() * 6) + 2;
 
         for (let i = 1; i < targetLen; i++) {
             let possibleMoves = [
@@ -99,8 +103,7 @@ export function generateLevel(id: number): LevelData {
             );
 
             if (neighbors.length === 0) break;
-            const next =
-                neighbors[Math.floor(Math.random() * neighbors.length)];
+            const next = neighbors[Math.floor(rng() * neighbors.length)];
             curr = { x: next.x, y: next.y };
             path.push(curr);
         }

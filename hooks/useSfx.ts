@@ -1,4 +1,4 @@
-import { Audio } from "expo-av";
+import { AudioPlayer, createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { useCallback, useEffect, useRef } from "react";
 import {
     DEFAULT_SFX_SELECTION,
@@ -19,6 +19,7 @@ export const AUDIO_MAP: Record<string, any> = {
     "default_boo.mp3": require("../assets/audios/gameover/default_boo.mp3"),
     "koshish_karna.m4a": require("../assets/audios/gameover/koshish_karna.m4a"),
     "libas_badlega.m4a": require("../assets/audios/gameover/libas_badlega.m4a"),
+    "chii_sasur.mp3": require("../assets/audios/gameover/chii_sasur.mp3"),
     // gamewin
     "clapping_default.m4a": require("../assets/audios/gamewin/clapping_default.m4a"),
     "sabash_beta.m4a": require("../assets/audios/gamewin/sabash_beta.m4a"),
@@ -29,7 +30,7 @@ export function useSfx() {
     const sfxEnabled = useRef(true);
     const selection = useRef<SfxSelection>(DEFAULT_SFX_SELECTION);
     const volume = useRef(0.5);
-    const sounds = useRef<Partial<Record<SfxType, Audio.Sound>>>({});
+    const sounds = useRef<Partial<Record<SfxType, AudioPlayer>>>({});
 
     // Load preferences + preload sounds
     useEffect(() => {
@@ -47,8 +48,8 @@ export function useSfx() {
             selection.current = sel;
             volume.current = vol;
 
-            await Audio.setAudioModeAsync({
-                playsInSilentModeIOS: true,
+            await setAudioModeAsync({
+                playsInSilentMode: true,
             });
 
             // Preload each category
@@ -59,12 +60,12 @@ export function useSfx() {
                 if (!source) continue;
 
                 try {
-                    const { sound } = await Audio.Sound.createAsync(source);
+                    const player = createAudioPlayer(source);
                     if (cancelled) {
-                        sound.unloadAsync();
+                        player.remove();
                         return;
                     }
-                    sounds.current[cat] = sound;
+                    sounds.current[cat] = player;
                 } catch {
                     // skip if audio fails to load
                 }
@@ -76,7 +77,7 @@ export function useSfx() {
         return () => {
             cancelled = true;
             // Unload all sounds
-            Object.values(sounds.current).forEach((s) => s?.unloadAsync());
+            Object.values(sounds.current).forEach((s) => s?.remove());
             sounds.current = {};
         };
     }, []);
@@ -87,9 +88,9 @@ export function useSfx() {
         const sound = sounds.current[type];
         if (!sound) return;
         try {
-            await sound.setVolumeAsync(volume.current);
-            await sound.setPositionAsync(0);
-            await sound.playAsync();
+            sound.volume = volume.current;
+            sound.seekTo(0);
+            sound.play();
         } catch {
             // skip
         }

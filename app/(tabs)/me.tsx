@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Audio } from "expo-av";
+import { AudioPlayer, createAudioPlayer } from "expo-audio";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useColorScheme } from "nativewind";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -47,6 +47,7 @@ const SFX_OPTIONS: Record<
             { name: "default_boo.mp3", label: "Boo" },
             { name: "koshish_karna.m4a", label: "Koshish Karna" },
             { name: "libas_badlega.m4a", label: "Libas Badlega" },
+            { name: "chii_sasur.mp3", label: "Chii Sasur" },
         ],
     },
     gamewin: {
@@ -69,7 +70,7 @@ export default function MeSettings() {
     const [sfxVolume, setSfxVolumeState] = useState(0.5);
     const [testLevel, setTestLevel] = useState("");
     const router = useRouter();
-    const activePreviewSound = useRef<Audio.Sound | null>(null);
+    const activePreviewSound = useRef<AudioPlayer | null>(null);
 
     useFocusEffect(
         useCallback(() => {
@@ -127,22 +128,22 @@ export default function MeSettings() {
             try {
                 // Stop previous preview if still playing
                 if (activePreviewSound.current) {
-                    await activePreviewSound.current.unloadAsync();
+                    activePreviewSound.current.remove();
                     activePreviewSound.current = null;
                 }
 
                 const source = AUDIO_MAP[file];
                 if (source) {
-                    const { sound } = await Audio.Sound.createAsync(source);
-                    activePreviewSound.current = sound;
+                    const player = createAudioPlayer(source);
+                    activePreviewSound.current = player;
 
-                    await sound.setVolumeAsync(sfxVolume);
-                    await sound.playAsync();
+                    player.volume = sfxVolume;
+                    player.play();
 
-                    sound.setOnPlaybackStatusUpdate((status) => {
+                    player.addListener("playbackStatusUpdate", (status) => {
                         if (status.isLoaded && status.didJustFinish) {
-                            sound.unloadAsync();
-                            if (activePreviewSound.current === sound) {
+                            player.remove();
+                            if (activePreviewSound.current === player) {
                                 activePreviewSound.current = null;
                             }
                         }
@@ -166,7 +167,7 @@ export default function MeSettings() {
     useEffect(() => {
         return () => {
             if (activePreviewSound.current) {
-                activePreviewSound.current.unloadAsync();
+                activePreviewSound.current.remove();
                 activePreviewSound.current = null;
             }
         };
@@ -174,7 +175,7 @@ export default function MeSettings() {
 
     useEffect(() => {
         if (!sfxOn && activePreviewSound.current) {
-            activePreviewSound.current.unloadAsync();
+            activePreviewSound.current.remove();
             activePreviewSound.current = null;
         }
     }, [sfxOn]);
