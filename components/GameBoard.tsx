@@ -21,7 +21,7 @@ interface GameBoardProps {
     errorTileId: string | null;
 }
 
-export function GameBoard({
+export const GameBoard = React.memo(function GameBoard({
     board,
     boardSize,
     shape,
@@ -91,9 +91,10 @@ export function GameBoard({
                 if (!shape[y]?.[x]) continue;
                 const cx = x * cellSize + cellSize / 2;
                 const cy = y * cellSize + cellSize / 2;
-                // Small circle as arc path (radius 1.5)
+                // Circle proportional to cell size
+                const r = Math.max(1, cellSize * 0.02);
                 parts.push(
-                    `M ${cx - 1.5},${cy} a 1.5,1.5 0 1,0 3,0 a 1.5,1.5 0 1,0 -3,0`,
+                    `M ${cx - r},${cy} a ${r},${r} 0 1,0 ${r * 2},0 a ${r},${r} 0 1,0 -${r * 2},0`,
                 );
             }
         }
@@ -164,19 +165,21 @@ export function GameBoard({
                             {/* Single batched path for all dots — replaces N×N Circle elements */}
                             <Path d={dotsPath} fill={dotColor} />
                             <G clipPath="url(#boardClip)">
-                                {board.map((tile) => (
-                                    <ArrowTile
-                                        key={tile.id}
-                                        ref={(el) => {
-                                            tileRefs.current[tile.id] = el;
-                                        }}
-                                        tile={tile}
-                                        cellSize={cellSize}
-                                        boardSize={boardSize}
-                                        isResetting={isResetting}
-                                        hasError={errorTileId === tile.id}
-                                    />
-                                ))}
+                                {board
+                                    .filter((tile) => !tile.removed)
+                                    .map((tile) => (
+                                        <ArrowTile
+                                            key={tile.id}
+                                            ref={(el) => {
+                                                tileRefs.current[tile.id] = el;
+                                            }}
+                                            tile={tile}
+                                            cellSize={cellSize}
+                                            boardSize={boardSize}
+                                            isResetting={isResetting}
+                                            hasError={errorTileId === tile.id}
+                                        />
+                                    ))}
                             </G>
                         </Svg>
 
@@ -211,4 +214,4 @@ export function GameBoard({
             </GestureDetector>
         </View>
     );
-}
+});

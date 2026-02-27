@@ -117,12 +117,12 @@ export const ArrowTile = React.memo(
             useImperativeHandle(ref, () => ({
                 onExit: () => {
                     progress.value = withTiming(escapeDist, {
-                        duration: 300,
+                        duration: 600,
                         easing: Easing.in(Easing.ease),
                     });
                     opacity.value = withDelay(
-                        200,
-                        withTiming(0, { duration: 150 }),
+                        400,
+                        withTiming(0, { duration: 200 }),
                     );
                 },
             }));

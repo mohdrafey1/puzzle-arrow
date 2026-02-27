@@ -182,31 +182,33 @@ function tryGenerateBackward(
 }
 
 export function generateLevel(id: number): LevelData {
-    // 50 levels per round (10 shapes * 5 levels each)
-    const round = Math.floor((id - 1) / 50);
+    // 40 levels per round (8 shapes * 5 levels each)
+    const round = Math.floor((id - 1) / 40);
     const levelInShape = (id - 1) % 5;
 
     // First round base is 6. Second round base is 11, etc.
     const baseSize = 6 + round * 5;
     // Grid size increases by 1 each level inside the 5-level shape block
     const calculatedSize = baseSize + levelInShape;
-    // Cap at 25 to prevent unplayable density
+    // Cap at 25 to prevent unplayable density (tiles become too small)
     const size = Math.min(calculatedSize, 25);
 
     const shapeName = getShapeForLevel(id);
     const shape = generateShapeMask(shapeName, size);
     const activeCellCount = countActiveCells(shape);
 
-    // Mixture of all lengths: allows short (2) up to very long arrows in every single level
+    // Mixture of all lengths: allows short (2) up to some long arrows.
     const minLen = 2;
-    const maxLen = Math.min(size + 5, 20);
+    // To get 80+ arrows in a smaller grid, average length must be smaller.
+    // For size 16 (level 101), maxLen = 6 -> avg length 4 -> ~64 arrows.
+    // For size 25 (max level), maxLen = 10 -> avg length 6 -> ~100 arrows.
+    const maxLen = Math.min(Math.floor(size / 3) + 3, 10);
 
     let bestResult: Omit<TileData, "id">[] = [];
     let bestFill = 0;
 
     // Backward generation is instant, so we can try generating 30 times
     // and just pick the instance that packed the board the tightest!
-    // No more endless 1-length backfills.
     for (let seedOffset = 0; seedOffset < 30; seedOffset++) {
         const rng = seedrandom(`${id}_backward_v8_${seedOffset}`);
         const result = tryGenerateBackward(

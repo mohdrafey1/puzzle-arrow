@@ -9,8 +9,6 @@ export type ShapeName =
     | "heart"
     | "cross"
     | "triangle"
-    | "ring"
-    | "star"
     | "lshape"
     | "arrow";
 /** All shapes in order — levels cycle through them every 5 levels */
@@ -21,8 +19,6 @@ export const SHAPE_ORDER: ShapeName[] = [
     "heart",
     "cross",
     "triangle",
-    "ring",
-    "star",
     "lshape",
     "arrow",
 ];
@@ -98,37 +94,6 @@ export function generateShapeMask(shape: ShapeName, size: number): boolean[][] {
                 }
             }
             return mask;
-        case "ring":
-            for (let y = 0; y < size; y++) {
-                for (let x = 0; x < size; x++) {
-                    const d = dist(x, y, cx, cy, r);
-                    mask[y][x] = d <= 1.05 && d >= 0.45;
-                }
-            }
-            return mask;
-        case "star": {
-            for (let y = 0; y < size; y++) {
-                for (let x = 0; x < size; x++) {
-                    const nx = (x - cx) / r;
-                    const ny = (y - cy) / r;
-                    const angle = Math.atan2(ny, nx);
-                    const radius = Math.sqrt(nx * nx + ny * ny);
-                    // 5-point star: alternating between outer (1.0) and inner (0.4) radius
-                    const starAngle = (angle + Math.PI * 2) % (Math.PI * 2);
-                    const segment = (starAngle / (Math.PI * 2)) * 5;
-                    const frac = segment % 1;
-                    // Interpolate between inner and outer radius
-                    const innerR = 0.38;
-                    const outerR = 1.05;
-                    const targetR =
-                        frac < 0.5
-                            ? innerR + (outerR - innerR) * (1 - frac * 2)
-                            : innerR + (outerR - innerR) * ((frac - 0.5) * 2);
-                    mask[y][x] = radius <= targetR;
-                }
-            }
-            return mask;
-        }
         case "lshape": {
             const armWidth = Math.max(2, Math.ceil(size * 0.4));
             for (let y = 0; y < size; y++) {

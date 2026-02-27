@@ -108,6 +108,8 @@ export default function GameScreen() {
 
             <View className="flex-1 w-full items-center justify-center">
                 <GameBoard
+                    // Create a stable array of arrows so GameBoard only updates when board changes,
+                    // not every 1000ms from elapsedSeconds incrementing.
                     board={board}
                     boardSize={levelData.size}
                     shape={levelData.shape}

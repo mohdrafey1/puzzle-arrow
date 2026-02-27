@@ -208,7 +208,7 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
                 animationLock.current = false;
                 setTimeout(() => {
                     removeTileRef.current(tile.id);
-                }, 350);
+                }, 600);
             } else {
                 haptic("error");
                 setErrorTileId(tile.id);
