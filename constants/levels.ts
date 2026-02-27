@@ -44,7 +44,9 @@ function tryGenerateBackward(
     const tiles: { path: Point[]; direction: Direction }[] = [];
 
     let attemptsWithoutPlacement = 0;
-    const maxAttempts = 100 + activeCellCount * 2;
+    // Increase max attempts significantly so the generator tries much harder
+    // to fill in empty cells without giving up too early on large boards.
+    const maxAttempts = 300 + activeCellCount * 3;
 
     while (attemptsWithoutPlacement < maxAttempts) {
         const emptyCells: Point[] = [];
@@ -55,7 +57,27 @@ function tryGenerateBackward(
         }
         if (emptyCells.length === 0) break;
 
-        const head = emptyCells[Math.floor(rng() * emptyCells.length)];
+        // Weight edges higher to force long wrapping snakes on the outside
+        // that block the inside ones.
+        emptyCells.sort((a, b) => {
+            const aIsEdge =
+                a.x === 0 || a.y === 0 || a.x === size - 1 || a.y === size - 1;
+            const bIsEdge =
+                b.x === 0 || b.y === 0 || b.x === size - 1 || b.y === size - 1;
+            if (aIsEdge && !bIsEdge) return -1;
+            if (bIsEdge && !aIsEdge) return 1;
+            return 0; // maintain relative randomness
+        });
+
+        // 60% chance to force picking an edge cell if available, to build huge boundary blockers
+        let head = emptyCells[Math.floor(rng() * emptyCells.length)];
+        const edgeCells = emptyCells.filter(
+            (c) =>
+                c.x === 0 || c.y === 0 || c.x === size - 1 || c.y === size - 1,
+        );
+        if (edgeCells.length > 0 && rng() < 0.6) {
+            head = edgeCells[Math.floor(rng() * edgeCells.length)];
+        }
 
         // Valid exit ray: ray must reach shape boundary WITHOUT hitting any occupied cell.
         const validDirs = DIRS.filter((dir) => {
@@ -101,7 +123,18 @@ function tryGenerateBackward(
         }
 
         // Build snake body, walking into available empty cells
-        const targetLen = Math.floor(rng() * (maxLen - minLen + 1)) + minLen;
+        const isHeadOnEdge =
+            head.x === 0 ||
+            head.y === 0 ||
+            head.x === size - 1 ||
+            head.y === size - 1;
+
+        // If we are starting on the edge, force a massive snake to wrap the grid
+        const actualMaxLen = isHeadOnEdge
+            ? Math.min(size * 2, maxLen * 2)
+            : maxLen;
+        const targetLen =
+            Math.floor(rng() * (actualMaxLen - minLen + 1)) + minLen;
         const path: Point[] = [head];
         let curr = head;
 
