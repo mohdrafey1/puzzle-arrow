@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -9,8 +9,14 @@ import {
     Pressable,
     ScrollView,
     Text,
+    TextInput,
     View,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, {
+    useAnimatedStyle,
+    useSharedValue,
+} from "react-native-reanimated";
 import Svg, { Circle, G, Line, Polygon, Rect } from "react-native-svg";
 import { submitCommunityLevel } from "../utils/communityLevels";
 import { Direction, Point } from "../utils/movement";
@@ -21,7 +27,7 @@ import {
 } from "../utils/previewLevel";
 import { getLeaderboardUsername } from "../utils/storage";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 interface PlacedArrow {
     path: Point[];
@@ -35,9 +41,15 @@ const DIRECTIONS: { dir: Direction; icon: string; label: string }[] = [
     { dir: "right", icon: "arrow-forward", label: "→" },
 ];
 
+const PRESET_SIZES = [4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25];
+
 export default function LevelEditor() {
     const router = useRouter();
-    const [gridSize, setGridSize] = useState(6);
+    const [gridCols, setGridCols] = useState(6);
+    const [gridRows, setGridRows] = useState(6);
+    const [isCustomMode, setIsCustomMode] = useState(false);
+    const [customRowsText, setCustomRowsText] = useState("6");
+    const [customColsText, setCustomColsText] = useState("6");
     const [arrows, setArrows] = useState<PlacedArrow[]>([]);
     const [currentPath, setCurrentPath] = useState<Point[]>([]);
     const [selectedDirection, setSelectedDirection] =
@@ -45,6 +57,7 @@ export default function LevelEditor() {
     const [copied, setCopied] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [playTestPassed, setPlayTestPassed] = useState(false);
+    const [showPresetPicker, setShowPresetPicker] = useState(false);
 
     // Check if the user returned from a successful play test
     useFocusEffect(
@@ -59,8 +72,74 @@ export default function LevelEditor() {
     // Board layout
     const padding = 16;
     const availableWidth = SCREEN_WIDTH - padding * 2 - 24;
-    const cellSize = Math.floor(availableWidth / gridSize);
-    const boardPixelSize = gridSize * cellSize;
+    // Use generous height — up to 60% of screen
+    const availableHeight = SCREEN_HEIGHT * 0.6;
+    // Use width-based cell size so the board always fills full width;
+    // for tall grids the board overflows vertically and the user can zoom/pan.
+    const cellSize = Math.floor(availableWidth / gridCols);
+    const boardPixelWidth = gridCols * cellSize;
+    const boardPixelHeight = gridRows * cellSize;
+    // Container clips tall boards to available height
+    const containerHeight = Math.min(
+        boardPixelHeight + padding,
+        availableHeight + padding,
+    );
+
+    // Determine if board needs zoom (large grids with tiny cells)
+    const isLargeGrid = gridRows > 15 || gridCols > 15;
+
+    // Pinch-to-zoom & pan shared values
+    const zoomScale = useSharedValue(1);
+    const savedZoomScale = useSharedValue(1);
+    const panX = useSharedValue(0);
+    const savedPanX = useSharedValue(0);
+    const panY = useSharedValue(0);
+    const savedPanY = useSharedValue(0);
+
+    // Reset zoom when grid changes
+    const prevGridKey = useRef(`${gridCols}-${gridRows}`);
+    const currentGridKey = `${gridCols}-${gridRows}`;
+    if (currentGridKey !== prevGridKey.current) {
+        prevGridKey.current = currentGridKey;
+        zoomScale.value = 1;
+        savedZoomScale.value = 1;
+        panX.value = 0;
+        savedPanX.value = 0;
+        panY.value = 0;
+        savedPanY.value = 0;
+    }
+
+    const pinchGesture = Gesture.Pinch()
+        .onUpdate((e) => {
+            zoomScale.value = Math.max(
+                0.5,
+                Math.min(savedZoomScale.value * e.scale, 5),
+            );
+        })
+        .onEnd(() => {
+            savedZoomScale.value = zoomScale.value;
+        });
+
+    const panGesture = Gesture.Pan()
+        .minPointers(2)
+        .onUpdate((e) => {
+            panX.value = savedPanX.value + e.translationX;
+            panY.value = savedPanY.value + e.translationY;
+        })
+        .onEnd(() => {
+            savedPanX.value = panX.value;
+            savedPanY.value = panY.value;
+        });
+
+    const composedGesture = Gesture.Simultaneous(pinchGesture, panGesture);
+
+    const boardAnimatedStyle = useAnimatedStyle(() => ({
+        transform: [
+            { translateX: panX.value },
+            { translateY: panY.value },
+            { scale: zoomScale.value },
+        ],
+    }));
 
     // Track which cells are occupied by placed arrows
     const occupiedCells = useMemo(() => {
@@ -137,7 +216,7 @@ export default function LevelEditor() {
                     const ny = curr.y + ddy;
                     const nk = `${nx},${ny}`;
 
-                    if (nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize)
+                    if (nx < 0 || nx >= gridCols || ny < 0 || ny >= gridRows)
                         continue;
                     if (visited.has(nk)) continue;
                     if (blocked.has(nk) && !(nx === x && ny === y)) continue;
@@ -156,7 +235,7 @@ export default function LevelEditor() {
             }
             // No path found — ignore tap
         },
-        [currentPath, currentPathSet, occupiedCells, gridSize],
+        [currentPath, currentPathSet, occupiedCells, gridCols, gridRows],
     );
 
     const handleCellLongPress = useCallback(
@@ -194,23 +273,46 @@ export default function LevelEditor() {
         setCurrentPath([]);
     }, []);
 
-    const changeGridSize = useCallback(
-        (delta: number) => {
-            const newSize = Math.max(4, Math.min(15, gridSize + delta));
-            if (newSize !== gridSize) {
-                setGridSize(newSize);
+    const applyGridSize = useCallback(
+        (newCols: number, newRows: number) => {
+            const cols = Math.max(4, Math.min(25, newCols));
+            const rows = Math.max(4, Math.min(50, newRows));
+            if (cols !== gridCols || rows !== gridRows) {
+                setGridCols(cols);
+                setGridRows(rows);
                 setArrows([]);
                 setCurrentPath([]);
                 setPlayTestPassed(false);
             }
         },
-        [gridSize],
+        [gridCols, gridRows],
     );
+
+    const changeGridSize = useCallback(
+        (delta: number) => {
+            // For simple mode, keep square
+            const currentSize = Math.max(gridCols, gridRows);
+            const newSize = Math.max(4, Math.min(25, currentSize + delta));
+            applyGridSize(newSize, newSize);
+        },
+        [gridCols, gridRows, applyGridSize],
+    );
+
+    const applyCustomSize = useCallback(() => {
+        const cols = parseInt(customColsText, 10) || 6;
+        const rows = parseInt(customRowsText, 10) || 6;
+        applyGridSize(cols, rows);
+    }, [customColsText, customRowsText, applyGridSize]);
+
+    // For LevelData compatibility, use max dimension as "size"
+    const effectiveSize = Math.max(gridCols, gridRows);
 
     const exportJSON = useCallback(async () => {
         const level = {
             id: 0,
-            size: gridSize,
+            size: effectiveSize,
+            rows: gridRows,
+            cols: gridCols,
             tiles: arrows.map((a) => ({
                 path: a.path,
                 direction: a.direction,
@@ -221,24 +323,32 @@ export default function LevelEditor() {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
         Alert.alert("Copied!", "Level JSON copied to clipboard.");
-    }, [gridSize, arrows]);
+    }, [effectiveSize, gridRows, gridCols, arrows]);
 
     const playTest = useCallback(() => {
         if (arrows.length === 0) return;
-        const shape = Array.from({ length: gridSize }, () =>
-            Array.from({ length: gridSize }, () => true),
+        // Build shape array: rows × cols, all true
+        const shape = Array.from({ length: gridRows }, () =>
+            Array.from({ length: gridCols }, () => true),
+        );
+        // Pad to square for game engine compatibility
+        const paddedSize = effectiveSize;
+        const paddedShape = Array.from({ length: paddedSize }, (_, y) =>
+            Array.from({ length: paddedSize }, (_, x) =>
+                y < gridRows && x < gridCols ? true : false,
+            ),
         );
         setPreviewLevel({
             id: 0,
-            size: gridSize,
-            shape,
+            size: paddedSize,
+            shape: paddedShape,
             tiles: arrows.map((a) => ({
                 path: a.path,
                 direction: a.direction,
             })),
         });
         router.push("/game/0?source=editor" as any);
-    }, [gridSize, arrows, router]);
+    }, [gridRows, gridCols, effectiveSize, arrows, router]);
 
     const submitToCommunity = useCallback(async () => {
         if (arrows.length === 0) return;
@@ -256,7 +366,7 @@ export default function LevelEditor() {
                 path: a.path,
                 direction: a.direction,
             }));
-            await submitCommunityLevel(username, gridSize, tiles);
+            await submitCommunityLevel(username, effectiveSize, tiles);
             Alert.alert(
                 "Shared! 🎉",
                 "Your level is now live in the Community tab.",
@@ -270,7 +380,7 @@ export default function LevelEditor() {
         } finally {
             setSubmitting(false);
         }
-    }, [arrows, gridSize, router]);
+    }, [arrows, effectiveSize, router]);
 
     // Render a placed arrow as SVG
     const renderArrow = (arrow: PlacedArrow, index: number) => {
@@ -385,6 +495,9 @@ export default function LevelEditor() {
         );
     };
 
+    const isSquare = gridCols === gridRows;
+    const gridLabel = isSquare ? `${gridCols}` : `${gridCols}×${gridRows}`;
+
     return (
         <View className="flex-1 bg-gray-50 dark:bg-gray-900 pt-12">
             {/* Header */}
@@ -402,25 +515,152 @@ export default function LevelEditor() {
                 contentContainerStyle={{ paddingBottom: 40 }}
             >
                 {/* Grid Size Control */}
-                <View className="flex-row items-center justify-center gap-4 mb-4 px-4">
-                    <Text className="text-gray-500 dark:text-gray-400 font-bold text-sm uppercase tracking-widest">
-                        Grid
-                    </Text>
-                    <Pressable
-                        onPress={() => changeGridSize(-1)}
-                        className="bg-gray-200 dark:bg-gray-700 w-10 h-10 rounded-xl items-center justify-center active:bg-gray-300"
-                    >
-                        <Ionicons name="remove" size={22} color="#6B7280" />
-                    </Pressable>
-                    <Text className="text-3xl font-black text-gray-900 dark:text-white w-12 text-center">
-                        {gridSize}
-                    </Text>
-                    <Pressable
-                        onPress={() => changeGridSize(1)}
-                        className="bg-gray-200 dark:bg-gray-700 w-10 h-10 rounded-xl items-center justify-center active:bg-gray-300"
-                    >
-                        <Ionicons name="add" size={22} color="#6B7280" />
-                    </Pressable>
+                <View className="px-4 mb-4">
+                    {!isCustomMode ? (
+                        <>
+                            {/* Simple Square Mode */}
+                            <View className="flex-row items-center justify-center gap-4 mb-2">
+                                <Text className="text-gray-500 dark:text-gray-400 font-bold text-sm uppercase tracking-widest">
+                                    Grid
+                                </Text>
+                                <Pressable
+                                    onPress={() => changeGridSize(-1)}
+                                    className="bg-gray-200 dark:bg-gray-700 w-10 h-10 rounded-xl items-center justify-center active:bg-gray-300"
+                                >
+                                    <Ionicons
+                                        name="remove"
+                                        size={22}
+                                        color="#6B7280"
+                                    />
+                                </Pressable>
+                                <Pressable
+                                    onPress={() =>
+                                        setShowPresetPicker(!showPresetPicker)
+                                    }
+                                >
+                                    <Text className="text-base font-black text-gray-900 dark:text-white w-12 text-center">
+                                        {gridLabel}
+                                    </Text>
+                                </Pressable>
+                                <Pressable
+                                    onPress={() => changeGridSize(1)}
+                                    className="bg-gray-200 dark:bg-gray-700 w-10 h-10 rounded-xl items-center justify-center active:bg-gray-300"
+                                >
+                                    <Ionicons
+                                        name="add"
+                                        size={22}
+                                        color="#6B7280"
+                                    />
+                                </Pressable>
+                            </View>
+
+                            {/* Preset size quick-pick */}
+                            {showPresetPicker && (
+                                <View className="flex-row flex-wrap justify-center gap-2 mb-3">
+                                    {PRESET_SIZES.map((s) => (
+                                        <Pressable
+                                            key={s}
+                                            onPress={() => {
+                                                applyGridSize(s, s);
+                                                setShowPresetPicker(false);
+                                            }}
+                                            className={`px-3 py-2 rounded-xl border ${
+                                                gridCols === s && gridRows === s
+                                                    ? "bg-blue-500 border-blue-600"
+                                                    : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                                            }`}
+                                        >
+                                            <Text
+                                                className={`font-bold text-xs ${
+                                                    gridCols === s &&
+                                                    gridRows === s
+                                                        ? "text-white"
+                                                        : "text-gray-600 dark:text-gray-400"
+                                                }`}
+                                            >
+                                                {s}×{s}
+                                            </Text>
+                                        </Pressable>
+                                    ))}
+                                </View>
+                            )}
+
+                            {/* Switch to Custom */}
+                            <Pressable
+                                onPress={() => {
+                                    setIsCustomMode(true);
+                                    setCustomColsText(String(gridCols));
+                                    setCustomRowsText(String(gridRows));
+                                }}
+                                className="self-center"
+                            >
+                                <Text className="text-blue-500 font-bold text-xs uppercase tracking-wider">
+                                    Custom Size ↗
+                                </Text>
+                            </Pressable>
+                        </>
+                    ) : (
+                        <>
+                            {/* Custom Rows × Cols Mode */}
+                            <View className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-200 dark:border-gray-700">
+                                <Text className="text-gray-500 dark:text-gray-400 font-bold text-xs uppercase tracking-widest mb-3 text-center">
+                                    Custom Grid (W max 25, H max 50)
+                                </Text>
+                                <View className="flex-row items-center justify-center gap-3">
+                                    <View className="items-center">
+                                        <Text className="text-gray-400 dark:text-gray-500 text-[10px] font-bold uppercase mb-1">
+                                            Cols (W)
+                                        </Text>
+                                        <TextInput
+                                            value={customColsText}
+                                            onChangeText={setCustomColsText}
+                                            keyboardType="number-pad"
+                                            maxLength={2}
+                                            className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white text-2xl font-black text-center w-16 h-12 rounded-xl border border-gray-200 dark:border-gray-600"
+                                            selectTextOnFocus
+                                        />
+                                    </View>
+                                    <Text className="text-gray-400 dark:text-gray-500 text-2xl font-black mt-4">
+                                        ×
+                                    </Text>
+                                    <View className="items-center">
+                                        <Text className="text-gray-400 dark:text-gray-500 text-[10px] font-bold uppercase mb-1">
+                                            Rows (H)
+                                        </Text>
+                                        <TextInput
+                                            value={customRowsText}
+                                            onChangeText={setCustomRowsText}
+                                            keyboardType="number-pad"
+                                            maxLength={2}
+                                            className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white text-2xl font-black text-center w-16 h-12 rounded-xl border border-gray-200 dark:border-gray-600"
+                                            selectTextOnFocus
+                                        />
+                                    </View>
+                                </View>
+                                <View className="flex-row gap-3 mt-4 justify-center">
+                                    <Pressable
+                                        onPress={() => setIsCustomMode(false)}
+                                        className="px-5 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700"
+                                    >
+                                        <Text className="text-gray-600 dark:text-gray-400 font-bold text-sm">
+                                            Cancel
+                                        </Text>
+                                    </Pressable>
+                                    <Pressable
+                                        onPress={() => {
+                                            applyCustomSize();
+                                            setIsCustomMode(false);
+                                        }}
+                                        className="px-5 py-2.5 rounded-xl bg-blue-500 active:bg-blue-600"
+                                    >
+                                        <Text className="text-white font-bold text-sm">
+                                            Apply
+                                        </Text>
+                                    </Pressable>
+                                </View>
+                            </View>
+                        </>
+                    )}
                 </View>
 
                 {/* Board */}
@@ -428,124 +668,157 @@ export default function LevelEditor() {
                     <View
                         className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden"
                         style={{
-                            width: boardPixelSize + padding,
-                            height: boardPixelSize + padding,
+                            width: availableWidth + padding,
+                            height: containerHeight,
                             padding: padding / 2,
                         }}
                     >
-                        <Svg width={boardPixelSize} height={boardPixelSize}>
-                            {/* Grid cells */}
-                            {Array.from({ length: gridSize }).map((_, y) =>
-                                Array.from({ length: gridSize }).map((_, x) => {
-                                    const key = `${x},${y}`;
-                                    const isOccupied = occupiedCells.has(key);
-                                    const isInPath = currentPathSet.has(key);
+                        <GestureDetector gesture={composedGesture}>
+                            <Animated.View
+                                style={[
+                                    {
+                                        width: boardPixelWidth,
+                                        height: boardPixelHeight,
+                                    },
+                                    boardAnimatedStyle,
+                                ]}
+                            >
+                                <Svg
+                                    width={boardPixelWidth}
+                                    height={boardPixelHeight}
+                                >
+                                    {/* Grid cells */}
+                                    {Array.from({ length: gridRows }).map(
+                                        (_, y) =>
+                                            Array.from({
+                                                length: gridCols,
+                                            }).map((_, x) => {
+                                                const key = `${x},${y}`;
+                                                const isOccupied =
+                                                    occupiedCells.has(key);
+                                                const isInPath =
+                                                    currentPathSet.has(key);
 
-                                    return (
-                                        <Rect
-                                            key={key}
-                                            x={x * cellSize + 1}
-                                            y={y * cellSize + 1}
-                                            width={cellSize - 2}
-                                            height={cellSize - 2}
-                                            rx={cellSize * 0.1}
-                                            fill={
-                                                isInPath
-                                                    ? "#FEF3C7"
-                                                    : isOccupied
-                                                      ? "#DBEAFE"
-                                                      : "#F9FAFB"
-                                            }
-                                            stroke={
-                                                isInPath
-                                                    ? "#F59E0B"
-                                                    : isOccupied
-                                                      ? "#93C5FD"
-                                                      : "#E5E7EB"
-                                            }
-                                            strokeWidth={1}
-                                        />
-                                    );
-                                }),
-                            )}
+                                                return (
+                                                    <Rect
+                                                        key={key}
+                                                        x={x * cellSize + 1}
+                                                        y={y * cellSize + 1}
+                                                        width={cellSize - 2}
+                                                        height={cellSize - 2}
+                                                        rx={cellSize * 0.1}
+                                                        fill={
+                                                            isInPath
+                                                                ? "#FEF3C7"
+                                                                : isOccupied
+                                                                  ? "#DBEAFE"
+                                                                  : "#F9FAFB"
+                                                        }
+                                                        stroke={
+                                                            isInPath
+                                                                ? "#F59E0B"
+                                                                : isOccupied
+                                                                  ? "#93C5FD"
+                                                                  : "#E5E7EB"
+                                                        }
+                                                        strokeWidth={1}
+                                                    />
+                                                );
+                                            }),
+                                    )}
 
-                            {/* Placed arrows */}
-                            {arrows.map((a, i) => renderArrow(a, i))}
+                                    {/* Placed arrows */}
+                                    {arrows.map((a, i) => renderArrow(a, i))}
 
-                            {/* Current drawing path */}
-                            {renderCurrentPath()}
+                                    {/* Current drawing path */}
+                                    {renderCurrentPath()}
 
-                            {/* Cell labels for small grids */}
-                            {gridSize <= 8 &&
-                                Array.from({ length: gridSize }).map((_, y) =>
-                                    Array.from({ length: gridSize }).map(
-                                        (_, x) => (
-                                            <Circle
-                                                key={`dot-${x}-${y}`}
-                                                cx={x * cellSize + cellSize / 2}
-                                                cy={y * cellSize + cellSize / 2}
-                                                r={cellSize * 0.04}
-                                                fill="#D1D5DB"
-                                                opacity={
-                                                    occupiedCells.has(
-                                                        `${x},${y}`,
-                                                    ) ||
-                                                    currentPathSet.has(
-                                                        `${x},${y}`,
-                                                    )
-                                                        ? 0
-                                                        : 0.5
-                                                }
-                                            />
-                                        ),
-                                    ),
-                                )}
-                        </Svg>
+                                    {/* Cell labels for small grids */}
+                                    {effectiveSize <= 8 &&
+                                        Array.from({ length: gridRows }).map(
+                                            (_, y) =>
+                                                Array.from({
+                                                    length: gridCols,
+                                                }).map((_, x) => (
+                                                    <Circle
+                                                        key={`dot-${x}-${y}`}
+                                                        cx={
+                                                            x * cellSize +
+                                                            cellSize / 2
+                                                        }
+                                                        cy={
+                                                            y * cellSize +
+                                                            cellSize / 2
+                                                        }
+                                                        r={cellSize * 0.04}
+                                                        fill="#D1D5DB"
+                                                        opacity={
+                                                            occupiedCells.has(
+                                                                `${x},${y}`,
+                                                            ) ||
+                                                            currentPathSet.has(
+                                                                `${x},${y}`,
+                                                            )
+                                                                ? 0
+                                                                : 0.5
+                                                        }
+                                                    />
+                                                )),
+                                        )}
+                                </Svg>
 
-                        {/* Touch overlay */}
-                        <Pressable
-                            style={{
-                                position: "absolute",
-                                top: padding / 2,
-                                left: padding / 2,
-                                width: boardPixelSize,
-                                height: boardPixelSize,
-                            }}
-                            onPress={(e) => {
-                                const x = Math.floor(
-                                    e.nativeEvent.locationX / cellSize,
-                                );
-                                const y = Math.floor(
-                                    e.nativeEvent.locationY / cellSize,
-                                );
-                                if (
-                                    x >= 0 &&
-                                    x < gridSize &&
-                                    y >= 0 &&
-                                    y < gridSize
-                                ) {
-                                    handleCellTap(x, y);
-                                }
-                            }}
-                            onLongPress={(e) => {
-                                const x = Math.floor(
-                                    e.nativeEvent.locationX / cellSize,
-                                );
-                                const y = Math.floor(
-                                    e.nativeEvent.locationY / cellSize,
-                                );
-                                if (
-                                    x >= 0 &&
-                                    x < gridSize &&
-                                    y >= 0 &&
-                                    y < gridSize
-                                ) {
-                                    handleCellLongPress(x, y);
-                                }
-                            }}
-                            delayLongPress={400}
-                        />
+                                {/* Touch overlay */}
+                                <Pressable
+                                    style={{
+                                        position: "absolute",
+                                        top: 0,
+                                        left: 0,
+                                        width: boardPixelWidth,
+                                        height: boardPixelHeight,
+                                    }}
+                                    onPress={(e) => {
+                                        const x = Math.floor(
+                                            e.nativeEvent.locationX / cellSize,
+                                        );
+                                        const y = Math.floor(
+                                            e.nativeEvent.locationY / cellSize,
+                                        );
+                                        if (
+                                            x >= 0 &&
+                                            x < gridCols &&
+                                            y >= 0 &&
+                                            y < gridRows
+                                        ) {
+                                            handleCellTap(x, y);
+                                        }
+                                    }}
+                                    onLongPress={(e) => {
+                                        const x = Math.floor(
+                                            e.nativeEvent.locationX / cellSize,
+                                        );
+                                        const y = Math.floor(
+                                            e.nativeEvent.locationY / cellSize,
+                                        );
+                                        if (
+                                            x >= 0 &&
+                                            x < gridCols &&
+                                            y >= 0 &&
+                                            y < gridRows
+                                        ) {
+                                            handleCellLongPress(x, y);
+                                        }
+                                    }}
+                                    delayLongPress={400}
+                                />
+                            </Animated.View>
+                        </GestureDetector>
                     </View>
+                    {/* Zoom hint for large grids */}
+                    {isLargeGrid && (
+                        <Text className="text-gray-400 dark:text-gray-500 text-[10px] mt-1 font-medium">
+                            Pinch to zoom • Two-finger drag to pan
+                        </Text>
+                    )}
                 </View>
 
                 {/* Direction Picker */}
@@ -777,13 +1050,17 @@ export default function LevelEditor() {
                             • Tap cells to draw a path (auto-fills gaps!)
                             {"\n"}• Pick a direction, then tap "Add Arrow"
                             {"\n"}• Hold a placed arrow to delete it
-                            {"\n"}• Arrows: {arrows.length} placed
+                            {"\n"}• Tap the grid number for preset sizes
+                            {"\n"}• Use "Custom Size" for non-square grids (up
+                            to 50)
+                            {"\n"}• Arrows: {arrows.length} placed | Grid:{" "}
+                            {gridCols}×{gridRows}
                         </Text>
                     </View>
 
                     {/* Beta Note */}
                     <Text className="text-gray-400 dark:text-gray-500 text-[10px] text-center mt-4 mb-8 leading-4 px-2 tracking-wide font-medium">
-                        NOTE: More grid sizes and custom shapes are coming soon!
+                        NOTE: Custom shapes are coming soon!
                         {"\n"}This is a beta feature, so you might encounter
                         some bugs.
                     </Text>
