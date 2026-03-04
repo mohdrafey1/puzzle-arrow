@@ -23,6 +23,7 @@ export function canMove(
     shape?: boolean[][],
 ): boolean {
     // Build a 2D boolean array of occupied cells from all other active tiles
+    // AND self-body cells (excluding the head) to detect self-collision
     const occupied = Array(boardSize)
         .fill(0)
         .map(() => Array(boardSize).fill(false));
@@ -31,6 +32,11 @@ export function canMove(
         for (const p of other.path) {
             occupied[p.y][p.x] = true;
         }
+    }
+    // Mark own body (excluding head) so the arrow can't exit through itself
+    for (let i = 0; i < tile.path.length - 1; i++) {
+        const p = tile.path[i];
+        occupied[p.y][p.x] = true;
     }
 
     const head = tile.path[tile.path.length - 1];
