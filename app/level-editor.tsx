@@ -780,6 +780,13 @@ export default function LevelEditor() {
                             {"\n"}• Arrows: {arrows.length} placed
                         </Text>
                     </View>
+
+                    {/* Beta Note */}
+                    <Text className="text-gray-400 dark:text-gray-500 text-[10px] text-center mt-4 mb-8 leading-4 px-2 tracking-wide font-medium">
+                        NOTE: More grid sizes and custom shapes are coming soon!
+                        {"\n"}This is a beta feature, so you might encounter
+                        some bugs.
+                    </Text>
                 </View>
             </ScrollView>
         </View>

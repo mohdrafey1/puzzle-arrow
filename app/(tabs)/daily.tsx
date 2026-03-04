@@ -296,6 +296,21 @@ export default function CommunityScreen() {
                         </Text>
                     </Pressable>
                 )}
+
+                {/* Encouragement Note */}
+                <View className="mt-4 bg-sky-50 dark:bg-sky-900/20 rounded-xl p-3 border border-sky-100 dark:border-sky-800 flex-row items-start gap-2">
+                    <Ionicons
+                        name="information-circle"
+                        size={16}
+                        color={isDark ? "#7DD3FC" : "#0284C7"}
+                        className="mt-0.5"
+                    />
+                    <Text className="flex-1 text-sky-700 dark:text-sky-300 text-xs leading-4">
+                        <Text className="font-bold">Loved a level?</Text> Upvote
+                        it so others can find it! The best levels rise to the
+                        top.
+                    </Text>
+                </View>
             </View>
 
             {/* Community Levels List */}
