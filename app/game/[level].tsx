@@ -14,7 +14,9 @@ import { GameBoard } from "../../components/GameBoard";
 import { LevelHeader } from "../../components/LevelHeader";
 import { useGameEngine } from "../../hooks/useGameEngine";
 import { formatTime } from "../../utils/format";
+import { submitScore } from "../../utils/leaderboard";
 import {
+    getLeaderboardUsername,
     getUnlockedLevel,
     saveCompletedLevel,
     setUnlockedLevel,
@@ -37,7 +39,18 @@ export default function GameScreen() {
     const handleComplete = useCallback(async () => {
         const unlocked = await getUnlockedLevel();
         if (levelId >= unlocked) {
-            await setUnlockedLevel(levelId + 1);
+            const newLevel = levelId + 1;
+            await setUnlockedLevel(newLevel);
+
+            // Submit to leaderboard in background
+            try {
+                const username = await getLeaderboardUsername();
+                if (username) {
+                    submitScore(username, newLevel).catch(() => {});
+                }
+            } catch {
+                // silently fail — offline or not registered
+            }
         }
     }, [levelId]);
 

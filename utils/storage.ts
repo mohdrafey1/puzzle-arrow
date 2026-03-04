@@ -8,6 +8,7 @@ const SFX_SELECTION_KEY = "@sfx_selection";
 const SFX_VOLUME_KEY = "@sfx_volume";
 const LEVEL_CACHE_PREFIX = "@level_cache_";
 const COMPLETED_LEVELS_KEY = "@completed_levels";
+const LEADERBOARD_USERNAME_KEY = "@leaderboard_username";
 
 export type ThemeType = "light" | "dark" | "system";
 
@@ -201,6 +202,22 @@ export async function saveCompletedLevel(
             COMPLETED_LEVELS_KEY,
             JSON.stringify(existing),
         );
+    } catch {
+        // skip
+    }
+}
+
+export async function getLeaderboardUsername(): Promise<string | null> {
+    try {
+        return await AsyncStorage.getItem(LEADERBOARD_USERNAME_KEY);
+    } catch {
+        return null;
+    }
+}
+
+export async function setLeaderboardUsername(username: string): Promise<void> {
+    try {
+        await AsyncStorage.setItem(LEADERBOARD_USERNAME_KEY, username);
     } catch {
         // skip
     }

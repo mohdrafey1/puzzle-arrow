@@ -300,38 +300,44 @@ export default function MeSettings() {
                 </Pressable>
 
                 {/* Dev Level Jump */}
-                <View className="flex-row items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700 bg-indigo-50 dark:bg-indigo-900/20">
-                    <View className="flex-row items-center gap-3">
-                        <Ionicons name="construct" size={20} color="#6366F1" />
-                        <Text className="text-lg font-semibold text-indigo-900 dark:text-indigo-100">
-                            Test Level
-                        </Text>
-                    </View>
-                    <View className="flex-row items-center gap-2">
-                        <TextInput
-                            value={testLevel}
-                            onChangeText={setTestLevel}
-                            keyboardType="number-pad"
-                            placeholder="ID"
-                            placeholderTextColor={
-                                isDark ? "#9CA3AF" : "#6B7280"
-                            }
-                            className="bg-white dark:bg-gray-800 px-3 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 w-16 text-center"
-                        />
-                        <Pressable
-                            onPress={() => {
-                                const lvl = parseInt(testLevel, 10);
-                                if (!isNaN(lvl) && lvl > 0) {
-                                    router.push(`/game/${lvl}`);
-                                    setTestLevel("");
+                {__DEV__ && (
+                    <View className="flex-row items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700 bg-indigo-50 dark:bg-indigo-900/20">
+                        <View className="flex-row items-center gap-3">
+                            <Ionicons
+                                name="construct"
+                                size={20}
+                                color="#6366F1"
+                            />
+                            <Text className="text-lg font-semibold text-indigo-900 dark:text-indigo-100">
+                                Test Level
+                            </Text>
+                        </View>
+                        <View className="flex-row items-center gap-2">
+                            <TextInput
+                                value={testLevel}
+                                onChangeText={setTestLevel}
+                                keyboardType="number-pad"
+                                placeholder="ID"
+                                placeholderTextColor={
+                                    isDark ? "#9CA3AF" : "#6B7280"
                                 }
-                            }}
-                            className="bg-indigo-500 px-3 py-1.5 rounded-lg active:bg-indigo-600"
-                        >
-                            <Text className="text-white font-bold">Go</Text>
-                        </Pressable>
+                                className="bg-white dark:bg-gray-800 px-3 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 w-16 text-center"
+                            />
+                            <Pressable
+                                onPress={() => {
+                                    const lvl = parseInt(testLevel, 10);
+                                    if (!isNaN(lvl) && lvl > 0) {
+                                        router.push(`/game/${lvl}`);
+                                        setTestLevel("");
+                                    }
+                                }}
+                                className="bg-indigo-500 px-3 py-1.5 rounded-lg active:bg-indigo-600"
+                            >
+                                <Text className="text-white font-bold">Go</Text>
+                            </Pressable>
+                        </View>
                     </View>
-                </View>
+                )}
 
                 {/* Reset */}
                 <Pressable
