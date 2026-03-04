@@ -15,6 +15,7 @@ import { LevelHeader } from "../../components/LevelHeader";
 import { useGameEngine } from "../../hooks/useGameEngine";
 import { formatTime } from "../../utils/format";
 import { submitScore } from "../../utils/leaderboard";
+import { markPreviewPassed } from "../../utils/previewLevel";
 import {
     getLeaderboardUsername,
     getUnlockedLevel,
@@ -29,14 +30,22 @@ function getStars(hearts: number): number {
 }
 
 export default function GameScreen() {
-    const { level, replay } = useLocalSearchParams();
+    const { level, replay, source } = useLocalSearchParams();
     const levelId = parseInt(level as string, 10);
     const isReplay = replay === "true";
+    const isPreview = levelId === 0;
+    const isCommunity = source === "community";
     const router = useRouter();
     const [finalTime, setFinalTime] = useState(0);
     const savedCompletion = useRef(false);
 
     const handleComplete = useCallback(async () => {
+        // Skip save/unlock for preview levels from the editor
+        if (isPreview) {
+            markPreviewPassed();
+            return;
+        }
+
         const unlocked = await getUnlockedLevel();
         if (levelId >= unlocked) {
             const newLevel = levelId + 1;
@@ -52,7 +61,7 @@ export default function GameScreen() {
                 // silently fail — offline or not registered
             }
         }
-    }, [levelId]);
+    }, [levelId, isPreview]);
 
     const {
         board,
@@ -83,8 +92,9 @@ export default function GameScreen() {
     const heartsUsed = 3 - hearts;
     const stars = getStars(hearts);
 
-    // Persist completion stats (once)
+    // Persist completion stats (once) — skip for preview levels
     useEffect(() => {
+        if (isPreview) return;
         if (isComplete && finalTime > 0 && !savedCompletion.current) {
             savedCompletion.current = true;
             saveCompletedLevel({
@@ -94,7 +104,7 @@ export default function GameScreen() {
                 stars,
             });
         }
-    }, [isComplete, hearts, levelId, stars, finalTime]);
+    }, [isComplete, hearts, levelId, stars, finalTime, isPreview]);
 
     // Card entrance animation (shared by completion & game over overlays)
     const cardScale = useSharedValue(0.6);
@@ -111,7 +121,10 @@ export default function GameScreen() {
     return (
         <View className="flex-1 bg-gray-50 dark:bg-gray-900 p-2 pt-8">
             <LevelHeader
-                levelId={levelId}
+                levelId={isPreview ? 0 : levelId}
+                levelLabel={
+                    isCommunity ? "-" : isPreview ? "Preview" : undefined
+                }
                 hearts={hearts}
                 elapsedSeconds={
                     isComplete ? finalTime || elapsedSeconds : elapsedSeconds
@@ -220,21 +233,39 @@ export default function GameScreen() {
                             {/* Primary action */}
                             <Pressable
                                 onPress={() =>
-                                    isReplay
-                                        ? router.replace("/completed-levels")
-                                        : router.replace(`/game/${levelId + 1}`)
+                                    isCommunity
+                                        ? router.back()
+                                        : isPreview
+                                          ? router.back()
+                                          : isReplay
+                                            ? router.replace(
+                                                  "/completed-levels",
+                                              )
+                                            : router.replace(
+                                                  `/game/${levelId + 1}`,
+                                              )
                                 }
                                 className="bg-indigo-500 active:bg-indigo-600 w-full rounded-2xl mb-4 border-b-4 border-indigo-700 active:border-b-0 active:translate-y-[4px] py-4"
                             >
                                 <View className="flex-row items-center justify-center gap-2">
                                     <Text className="text-white font-black text-lg tracking-wide uppercase">
-                                        {isReplay
-                                            ? "Completed Levels"
-                                            : "Next Level"}
+                                        {isCommunity
+                                            ? "Back to Community"
+                                            : isPreview
+                                              ? "Back to Editor"
+                                              : isReplay
+                                                ? "Completed Levels"
+                                                : "Next Level"}
                                     </Text>
                                     <Ionicons
                                         name={
-                                            isReplay ? "list" : "arrow-forward"
+                                            isCommunity
+                                                ? "people"
+                                                : isPreview
+                                                  ? "create"
+                                                  : isReplay
+                                                    ? "list"
+                                                    : "arrow-forward"
                                         }
                                         size={24}
                                         color="white"
@@ -316,17 +347,33 @@ export default function GameScreen() {
                         </Pressable>
 
                         <Pressable
-                            onPress={() => router.replace("/")}
+                            onPress={() =>
+                                isCommunity
+                                    ? router.back()
+                                    : isPreview
+                                      ? router.back()
+                                      : router.replace("/")
+                            }
                             className="w-full py-4 rounded-2xl bg-gray-100 dark:bg-gray-800 border-b-4 border-gray-300 dark:border-gray-700 active:border-b-0 active:translate-y-[4px] active:bg-gray-200 dark:active:bg-gray-700"
                         >
                             <View className="flex-row items-center justify-center gap-2">
                                 <Ionicons
-                                    name="home"
+                                    name={
+                                        isCommunity
+                                            ? "people"
+                                            : isPreview
+                                              ? "create"
+                                              : "home"
+                                    }
                                     size={20}
                                     color="#6B7280"
                                 />
                                 <Text className="text-gray-700 dark:text-gray-300 font-bold text-base tracking-wide uppercase">
-                                    Back to Home
+                                    {isCommunity
+                                        ? "Back to Community"
+                                        : isPreview
+                                          ? "Back to Editor"
+                                          : "Back to Home"}
                                 </Text>
                             </View>
                         </Pressable>

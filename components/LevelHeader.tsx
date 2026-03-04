@@ -7,6 +7,7 @@ import { HeartsBar } from "./HeartsBar";
 
 interface LevelHeaderProps {
     levelId: number;
+    levelLabel?: string;
     hearts: number;
     elapsedSeconds: number;
     arrowsRemaining: number;
@@ -14,6 +15,7 @@ interface LevelHeaderProps {
 
 export function LevelHeader({
     levelId,
+    levelLabel,
     hearts,
     elapsedSeconds,
     arrowsRemaining,
@@ -42,7 +44,7 @@ export function LevelHeader({
                     </Text>
                     <View className="flex-row items-center gap-2">
                         <Text className="text-xl font-black text-gray-900 dark:text-gray-100 leading-tight">
-                            {levelId}
+                            {levelLabel || levelId}
                         </Text>
                         <View className="bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">
                             <Text className="text-xs font-bold text-indigo-500">

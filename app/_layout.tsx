@@ -75,6 +75,10 @@ export default function RootLayout() {
                         name="completed-levels"
                         options={{ headerShown: false }}
                     />
+                    <Stack.Screen
+                        name="level-editor"
+                        options={{ headerShown: false }}
+                    />
                 </Stack>
                 <StatusBar style="auto" />
             </ThemeProvider>

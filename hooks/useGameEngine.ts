@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getStaticLevel } from "../assets/levels";
 import { generateLevel, LevelData, restoreShape } from "../constants/levels";
 import { canMove, TileData } from "../utils/movement";
+import { getPreviewLevel } from "../utils/previewLevel";
 import { getHapticsEnabled } from "../utils/storage";
 import { useSfx } from "./useSfx";
 
@@ -20,6 +21,12 @@ function buildBoard(
 }
 
 function getLevelData(levelId: number): LevelData {
+    // Preview level from the editor (id=0)
+    if (levelId === 0) {
+        const preview = getPreviewLevel();
+        if (preview) return preview;
+    }
+
     const raw = getStaticLevel(levelId);
     if (raw) {
         return {

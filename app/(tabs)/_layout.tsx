@@ -35,9 +35,9 @@ export default function TabLayout() {
             <Tabs.Screen
                 name="daily"
                 options={{
-                    title: "Daily",
+                    title: "Community",
                     tabBarIcon: ({ color }) => (
-                        <Ionicons size={24} name="calendar" color={color} />
+                        <Ionicons size={24} name="people" color={color} />
                     ),
                 }}
             />
