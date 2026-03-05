@@ -13,6 +13,7 @@ export interface CommunityLevel {
     thumbsDown: number;
     votes: Record<string, "up" | "down">;
     createdAt: number;
+    tags?: string[];
 }
 
 /**
@@ -22,6 +23,7 @@ export async function submitCommunityLevel(
     creator: string,
     size: number,
     tiles: CommunityLevel["tiles"],
+    tags: string[] = [],
 ): Promise<string> {
     const levelsRef = ref(db, "community_levels");
     const newRef = push(levelsRef);
@@ -36,6 +38,7 @@ export async function submitCommunityLevel(
         thumbsDown: 0,
         votes: {},
         createdAt: Date.now(),
+        tags,
     };
 
     await set(newRef, level);

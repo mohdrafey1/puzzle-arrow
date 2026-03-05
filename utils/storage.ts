@@ -222,3 +222,32 @@ export async function setLeaderboardUsername(username: string): Promise<void> {
         // skip
     }
 }
+
+const LEVEL_DRAFT_KEY = "@level_draft";
+
+export interface LevelDraft {
+    gridCols: number;
+    gridRows: number;
+    arrows: any[];
+}
+
+export async function getLevelDraft(): Promise<LevelDraft | null> {
+    try {
+        const val = await AsyncStorage.getItem(LEVEL_DRAFT_KEY);
+        return val ? JSON.parse(val) : null;
+    } catch {
+        return null;
+    }
+}
+
+export async function saveLevelDraft(draft: LevelDraft | null): Promise<void> {
+    try {
+        if (draft) {
+            await AsyncStorage.setItem(LEVEL_DRAFT_KEY, JSON.stringify(draft));
+        } else {
+            await AsyncStorage.removeItem(LEVEL_DRAFT_KEY);
+        }
+    } catch {
+        // skip
+    }
+}

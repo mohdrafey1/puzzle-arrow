@@ -1,4 +1,12 @@
-import { get, onValue, ref, set } from "firebase/database";
+import {
+    get,
+    limitToLast,
+    onValue,
+    orderByChild,
+    query,
+    ref,
+    set,
+} from "firebase/database";
 import { db } from "./firebase";
 
 export interface LeaderboardEntry {
@@ -44,7 +52,11 @@ export async function submitScore(
  * Fetch the full leaderboard, sorted by level descending.
  */
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
-    const leaderboardRef = ref(db, "leaderboard");
+    const leaderboardRef = query(
+        ref(db, "leaderboard"),
+        orderByChild("level"),
+        limitToLast(100),
+    );
     const snapshot = await get(leaderboardRef);
 
     if (!snapshot.exists()) return [];
@@ -65,7 +77,11 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
 export function subscribeLeaderboard(
     callback: (entries: LeaderboardEntry[]) => void,
 ): () => void {
-    const leaderboardRef = ref(db, "leaderboard");
+    const leaderboardRef = query(
+        ref(db, "leaderboard"),
+        orderByChild("level"),
+        limitToLast(100),
+    );
 
     const unsubscribe = onValue(leaderboardRef, (snapshot) => {
         if (!snapshot.exists()) {
@@ -83,4 +99,15 @@ export function subscribeLeaderboard(
     });
 
     return unsubscribe;
+}
+
+/**
+ * Fetch a specific user's leaderboard entry to show their score.
+ */
+export async function fetchUserEntry(
+    username: string,
+): Promise<LeaderboardEntry | null> {
+    const snapshot = await get(ref(db, `leaderboard/${username}`));
+    if (!snapshot.exists()) return null;
+    return snapshot.val() as LeaderboardEntry;
 }

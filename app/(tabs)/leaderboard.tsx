@@ -17,6 +17,7 @@ import {
     LeaderboardEntry,
     checkUsernameAvailable,
     fetchLeaderboard,
+    fetchUserEntry,
     submitScore,
 } from "../../utils/leaderboard";
 import {
@@ -34,6 +35,7 @@ export default function LeaderboardScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [isOffline, setIsOffline] = useState(false);
     const [username, setUsername] = useState<string | null>(null);
+    const [userEntry, setUserEntry] = useState<LeaderboardEntry | null>(null);
 
     // Username modal state
     const [showModal, setShowModal] = useState(false);
@@ -69,8 +71,12 @@ export default function LeaderboardScreen() {
 
                 try {
                     const data = await fetchLeaderboard();
-
                     if (active) setEntries(data);
+
+                    if (savedName) {
+                        const entry = await fetchUserEntry(savedName);
+                        if (active) setUserEntry(entry);
+                    }
                 } catch {
                     // offline or error
                 } finally {
@@ -90,6 +96,10 @@ export default function LeaderboardScreen() {
         try {
             const data = await fetchLeaderboard();
             setEntries(data);
+            if (username) {
+                const entry = await fetchUserEntry(username);
+                setUserEntry(entry);
+            }
         } catch {
             // offline
         } finally {
@@ -137,6 +147,8 @@ export default function LeaderboardScreen() {
             // Refresh leaderboard
             const data = await fetchLeaderboard();
             setEntries(data);
+            const entry = await fetchUserEntry(trimmed);
+            setUserEntry(entry);
         } catch {
             setErrorMsg("Network error. Please try again.");
         } finally {
@@ -202,6 +214,11 @@ export default function LeaderboardScreen() {
                                     try {
                                         const data = await fetchLeaderboard();
                                         setEntries(data);
+                                        if (username) {
+                                            const entry =
+                                                await fetchUserEntry(username);
+                                            setUserEntry(entry);
+                                        }
                                     } catch {
                                         // still offline
                                     } finally {
@@ -352,6 +369,41 @@ export default function LeaderboardScreen() {
                     );
                 }}
             />
+
+            {/* Sticky "My Score" Footer if user not in top 100 */}
+            {username &&
+                userEntry &&
+                !entries.some((e) => e.username === username) && (
+                    <View className="absolute bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 pb-8 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+                        <View className="flex-row items-center justify-between mx-2">
+                            <View className="flex-row items-center gap-3">
+                                <View className="bg-indigo-100 dark:bg-indigo-900/40 p-2.5 rounded-xl">
+                                    <Ionicons
+                                        name="person"
+                                        size={20}
+                                        color="#6366F1"
+                                    />
+                                </View>
+                                <View>
+                                    <Text className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wide">
+                                        Your Score
+                                    </Text>
+                                    <Text className="text-gray-900 dark:text-white font-black text-lg">
+                                        @{username}
+                                    </Text>
+                                </View>
+                            </View>
+                            <View className="items-end bg-gray-50 dark:bg-gray-700/50 px-4 py-2 rounded-xl border border-gray-100 dark:border-gray-700">
+                                <Text className="text-gray-400 dark:text-gray-500 text-[10px] font-bold uppercase tracking-wider">
+                                    Level
+                                </Text>
+                                <Text className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
+                                    {userEntry.level}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
 
             {/* Username Modal */}
             <Modal

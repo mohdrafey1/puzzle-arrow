@@ -25,7 +25,11 @@ import {
     resetPreviewPassed,
     setPreviewLevel,
 } from "../utils/previewLevel";
-import { getLeaderboardUsername } from "../utils/storage";
+import {
+    getLeaderboardUsername,
+    getLevelDraft,
+    saveLevelDraft,
+} from "../utils/storage";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -42,6 +46,7 @@ const DIRECTIONS: { dir: Direction; icon: string; label: string }[] = [
 ];
 
 const PRESET_SIZES = [4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25];
+const AVAILABLE_TAGS = ["Logic", "Maze", "Hard", "Speed", "Easy", "Creative"];
 
 export default function LevelEditor() {
     const router = useRouter();
@@ -58,6 +63,37 @@ export default function LevelEditor() {
     const [submitting, setSubmitting] = useState(false);
     const [playTestPassed, setPlayTestPassed] = useState(false);
     const [showPresetPicker, setShowPresetPicker] = useState(false);
+    const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+    const [history, setHistory] = useState<PlacedArrow[][]>([]);
+    const [redoStack, setRedoStack] = useState<PlacedArrow[][]>([]);
+    const [loadedDraft, setLoadedDraft] = useState(false);
+
+    // Initial draft loading
+    React.useEffect(() => {
+        let mounted = true;
+        getLevelDraft().then((draft) => {
+            if (mounted && draft) {
+                setGridCols(draft.gridCols);
+                setGridRows(draft.gridRows);
+                setArrows(draft.arrows);
+            }
+            if (mounted) setLoadedDraft(true);
+        });
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    // Save draft
+    React.useEffect(() => {
+        if (!loadedDraft) return;
+        if (arrows.length > 0) {
+            saveLevelDraft({ gridCols, gridRows, arrows });
+        } else {
+            saveLevelDraft(null);
+        }
+    }, [arrows, gridCols, gridRows, loadedDraft]);
 
     // Check if the user returned from a successful play test
     useFocusEffect(
@@ -131,8 +167,6 @@ export default function LevelEditor() {
             savedPanY.value = panY.value;
         });
 
-    const composedGesture = Gesture.Simultaneous(pinchGesture, panGesture);
-
     const boardAnimatedStyle = useAnimatedStyle(() => ({
         transform: [
             { translateX: panX.value },
@@ -150,12 +184,44 @@ export default function LevelEditor() {
         return set;
     }, [arrows]);
 
-    // Track which cells are in the current drawing path
     const currentPathSet = useMemo(() => {
         const set = new Set<string>();
         currentPath.forEach((p) => set.add(`${p.x},${p.y}`));
         return set;
     }, [currentPath]);
+
+    const pushHistory = useCallback(
+        (newArrows: PlacedArrow[], prevArrows: PlacedArrow[]) => {
+            setHistory((prev) => [...prev, prevArrows]);
+            setRedoStack([]);
+            setArrows(newArrows);
+        },
+        [],
+    );
+
+    const handleUndo = useCallback(() => {
+        if (history.length === 0) return;
+        setHistory((prev) => {
+            const prevState = prev[prev.length - 1];
+            const newHistory = prev.slice(0, -1);
+            setRedoStack((rs) => [...rs, arrows]);
+            setArrows(prevState);
+            setPlayTestPassed(false);
+            return newHistory;
+        });
+    }, [history, arrows]);
+
+    const handleRedo = useCallback(() => {
+        if (redoStack.length === 0) return;
+        setRedoStack((prev) => {
+            const nextState = prev[prev.length - 1];
+            const newRedo = prev.slice(0, -1);
+            setHistory((h) => [...h, arrows]);
+            setArrows(nextState);
+            setPlayTestPassed(false);
+            return newRedo;
+        });
+    }, [redoStack, arrows]);
 
     const handleCellTap = useCallback(
         (x: number, y: number) => {
@@ -242,32 +308,60 @@ export default function LevelEditor() {
         (x: number, y: number) => {
             const key = `${x},${y}`;
             if (occupiedCells.has(key)) {
-                setArrows((prev) =>
-                    prev.filter(
-                        (a) => !a.path.some((p) => p.x === x && p.y === y),
-                    ),
+                const newArrows = arrows.filter(
+                    (a) => !a.path.some((p) => p.x === x && p.y === y),
                 );
+                pushHistory(newArrows, arrows);
                 setPlayTestPassed(false);
             }
         },
-        [occupiedCells],
+        [occupiedCells, arrows, pushHistory],
+    );
+
+    const tapGesture = Gesture.Tap()
+        .maxDuration(250)
+        .runOnJS(true)
+        .onEnd((e) => {
+            const x = Math.floor(e.x / cellSize);
+            const y = Math.floor(e.y / cellSize);
+            if (x >= 0 && x < gridCols && y >= 0 && y < gridRows) {
+                handleCellTap(x, y);
+            }
+        });
+
+    const longPressGesture = Gesture.LongPress()
+        .minDuration(400)
+        .runOnJS(true)
+        .onEnd((e) => {
+            const x = Math.floor(e.x / cellSize);
+            const y = Math.floor(e.y / cellSize);
+            if (x >= 0 && x < gridCols && y >= 0 && y < gridRows) {
+                handleCellLongPress(x, y);
+            }
+        });
+
+    const touchGestures = Gesture.Exclusive(longPressGesture, tapGesture);
+    const composedGesture = Gesture.Simultaneous(
+        Gesture.Simultaneous(pinchGesture, panGesture),
+        touchGestures,
     );
 
     const addArrow = useCallback(() => {
         if (currentPath.length === 0) return;
-        setArrows((prev) => [
-            ...prev,
+        const newArrows = [
+            ...arrows,
             { path: [...currentPath], direction: selectedDirection },
-        ]);
+        ];
+        pushHistory(newArrows, arrows);
         setCurrentPath([]);
         setPlayTestPassed(false); // arrows changed, need re-test
-    }, [currentPath, selectedDirection]);
+    }, [currentPath, selectedDirection, arrows, pushHistory]);
 
     const clearAll = useCallback(() => {
-        setArrows([]);
+        if (arrows.length > 0) pushHistory([], arrows);
         setCurrentPath([]);
         setPlayTestPassed(false);
-    }, []);
+    }, [arrows, pushHistory]);
 
     const cancelPath = useCallback(() => {
         setCurrentPath([]);
@@ -280,12 +374,12 @@ export default function LevelEditor() {
             if (cols !== gridCols || rows !== gridRows) {
                 setGridCols(cols);
                 setGridRows(rows);
-                setArrows([]);
+                if (arrows.length > 0) pushHistory([], arrows);
                 setCurrentPath([]);
                 setPlayTestPassed(false);
             }
         },
-        [gridCols, gridRows],
+        [gridCols, gridRows, arrows, pushHistory],
     );
 
     const changeGridSize = useCallback(
@@ -366,7 +460,17 @@ export default function LevelEditor() {
                 path: a.path,
                 direction: a.direction,
             }));
-            await submitCommunityLevel(username, effectiveSize, tiles);
+            await submitCommunityLevel(
+                username,
+                effectiveSize,
+                tiles,
+                selectedTags,
+            );
+            await saveLevelDraft(null); // Clear draft
+            setArrows([]); // Reset UI
+            pushHistory([], arrows);
+            setCurrentPath([]);
+
             Alert.alert(
                 "Shared! 🎉",
                 "Your level is now live in the Community tab.",
@@ -380,7 +484,7 @@ export default function LevelEditor() {
         } finally {
             setSubmitting(false);
         }
-    }, [arrows, effectiveSize, router]);
+    }, [arrows, effectiveSize, router, selectedTags]);
 
     // Render a placed arrow as SVG
     const renderArrow = (arrow: PlacedArrow, index: number) => {
@@ -508,6 +612,42 @@ export default function LevelEditor() {
                 <Text className="text-2xl font-black text-gray-900 dark:text-gray-100 flex-1">
                     Level Editor
                 </Text>
+
+                {/* Undo / Redo */}
+                <View className="flex-row gap-2">
+                    <Pressable
+                        onPress={handleUndo}
+                        disabled={history.length === 0}
+                        className={`w-10 h-10 rounded-xl items-center justify-center ${
+                            history.length === 0
+                                ? "bg-gray-100 dark:bg-gray-800 opacity-50"
+                                : "bg-gray-200 dark:bg-gray-700 active:bg-gray-300"
+                        }`}
+                    >
+                        <Ionicons
+                            name="arrow-undo"
+                            size={20}
+                            color={history.length === 0 ? "#9CA3AF" : "#4B5563"}
+                        />
+                    </Pressable>
+                    <Pressable
+                        onPress={handleRedo}
+                        disabled={redoStack.length === 0}
+                        className={`w-10 h-10 rounded-xl items-center justify-center ${
+                            redoStack.length === 0
+                                ? "bg-gray-100 dark:bg-gray-800 opacity-50"
+                                : "bg-gray-200 dark:bg-gray-700 active:bg-gray-300"
+                        }`}
+                    >
+                        <Ionicons
+                            name="arrow-redo"
+                            size={20}
+                            color={
+                                redoStack.length === 0 ? "#9CA3AF" : "#4B5563"
+                            }
+                        />
+                    </Pressable>
+                </View>
             </View>
 
             <ScrollView
@@ -766,50 +906,6 @@ export default function LevelEditor() {
                                                 )),
                                         )}
                                 </Svg>
-
-                                {/* Touch overlay */}
-                                <Pressable
-                                    style={{
-                                        position: "absolute",
-                                        top: 0,
-                                        left: 0,
-                                        width: boardPixelWidth,
-                                        height: boardPixelHeight,
-                                    }}
-                                    onPress={(e) => {
-                                        const x = Math.floor(
-                                            e.nativeEvent.locationX / cellSize,
-                                        );
-                                        const y = Math.floor(
-                                            e.nativeEvent.locationY / cellSize,
-                                        );
-                                        if (
-                                            x >= 0 &&
-                                            x < gridCols &&
-                                            y >= 0 &&
-                                            y < gridRows
-                                        ) {
-                                            handleCellTap(x, y);
-                                        }
-                                    }}
-                                    onLongPress={(e) => {
-                                        const x = Math.floor(
-                                            e.nativeEvent.locationX / cellSize,
-                                        );
-                                        const y = Math.floor(
-                                            e.nativeEvent.locationY / cellSize,
-                                        );
-                                        if (
-                                            x >= 0 &&
-                                            x < gridCols &&
-                                            y >= 0 &&
-                                            y < gridRows
-                                        ) {
-                                            handleCellLongPress(x, y);
-                                        }
-                                    }}
-                                    delayLongPress={400}
-                                />
                             </Animated.View>
                         </GestureDetector>
                     </View>
@@ -852,7 +948,7 @@ export default function LevelEditor() {
                 </View>
 
                 {/* Action Buttons */}
-                <View className="px-4 gap-3">
+                <View className="px-4 gap-3 pb-8">
                     {/* Add Arrow */}
                     <Pressable
                         onPress={addArrow}
@@ -1041,6 +1137,59 @@ export default function LevelEditor() {
                             </View>
                         )}
                     </Pressable>
+                </View>
+
+                {/* Tag Selection */}
+                <View className="px-4 mb-4">
+                    <Text className="text-gray-500 dark:text-gray-400 font-bold text-xs uppercase tracking-widest mb-2 text-center">
+                        Add Tags (Optional)
+                    </Text>
+                    <View className="flex-row flex-wrap justify-center gap-2">
+                        {AVAILABLE_TAGS.map((tag) => {
+                            const isSelected = selectedTags.includes(tag);
+                            return (
+                                <Pressable
+                                    key={tag}
+                                    onPress={() => {
+                                        if (isSelected) {
+                                            setSelectedTags(
+                                                selectedTags.filter(
+                                                    (t) => t !== tag,
+                                                ),
+                                            );
+                                        } else {
+                                            if (selectedTags.length >= 3) {
+                                                Alert.alert(
+                                                    "Max 3 Tags",
+                                                    "You can only select up to 3 tags per level.",
+                                                );
+                                                return;
+                                            }
+                                            setSelectedTags([
+                                                ...selectedTags,
+                                                tag,
+                                            ]);
+                                        }
+                                    }}
+                                    className={`px-3 py-1.5 rounded-full border ${
+                                        isSelected
+                                            ? "bg-blue-500 border-blue-600"
+                                            : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                                    }`}
+                                >
+                                    <Text
+                                        className={`text-xs font-bold ${
+                                            isSelected
+                                                ? "text-white"
+                                                : "text-gray-600 dark:text-gray-400"
+                                        }`}
+                                    >
+                                        {tag}
+                                    </Text>
+                                </Pressable>
+                            );
+                        })}
+                    </View>
                 </View>
 
                 {/* Info */}

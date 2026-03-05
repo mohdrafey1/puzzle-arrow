@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import NetInfo from "@react-native-community/netinfo";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useColorScheme } from "nativewind";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -10,6 +10,7 @@ import {
     Modal,
     Pressable,
     RefreshControl,
+    ScrollView,
     Text,
     TextInput,
     View,
@@ -44,6 +45,31 @@ export default function CommunityScreen() {
     const [checking, setChecking] = useState(false);
     const [errorMsg, setErrorMsg] = useState("");
     const [pendingAction, setPendingAction] = useState<"create" | null>(null);
+
+    const [filterTag, setFilterTag] = useState("All");
+    const [sortBy, setSortBy] = useState<"top" | "new">("top");
+    const [filterCreator, setFilterCreator] = useState<string | null>(null);
+
+    const filteredLevels = useMemo(() => {
+        let result = levels;
+        if (filterCreator) {
+            result = result.filter((l) => l.creator === filterCreator);
+        }
+        if (filterTag !== "All") {
+            result = result.filter((l) => l.tags?.includes(filterTag));
+        }
+        result = [...result].sort((a, b) => {
+            if (sortBy === "top") {
+                const scoreA = a.thumbsUp - a.thumbsDown;
+                const scoreB = b.thumbsUp - b.thumbsDown;
+                if (scoreB !== scoreA) return scoreB - scoreA;
+                return b.createdAt - a.createdAt;
+            } else {
+                return b.createdAt - a.createdAt;
+            }
+        });
+        return result;
+    }, [levels, filterTag, sortBy, filterCreator]);
 
     // Voting in-flight tracker
     const votingRef = useRef<Set<string>>(new Set());
@@ -311,11 +337,88 @@ export default function CommunityScreen() {
                         top.
                     </Text>
                 </View>
+
+                {/* Filters Row */}
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    className="mt-4"
+                    contentContainerStyle={{ paddingBottom: 8, gap: 8 }}
+                >
+                    {/* Sort Options */}
+                    <Pressable
+                        onPress={() =>
+                            setSortBy(sortBy === "top" ? "new" : "top")
+                        }
+                        className="bg-indigo-100 dark:bg-indigo-900/30 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800/50 flex-row items-center gap-1"
+                    >
+                        <Ionicons
+                            name={sortBy === "top" ? "star" : "time"}
+                            size={14}
+                            color="#6366F1"
+                        />
+                        <Text className="text-indigo-700 dark:text-indigo-300 font-bold text-xs uppercase tracking-wide">
+                            {sortBy === "top" ? "Top Rated" : "Newest"}
+                        </Text>
+                    </Pressable>
+
+                    {/* Creator Filter Pill */}
+                    {filterCreator && (
+                        <Pressable
+                            onPress={() => setFilterCreator(null)}
+                            className="bg-purple-100 dark:bg-purple-900/30 px-3 py-1.5 rounded-xl border border-purple-200 dark:border-purple-800/50 flex-row items-center gap-1"
+                        >
+                            <Ionicons name="person" size={14} color="#A855F7" />
+                            <Text className="text-purple-700 dark:text-purple-300 font-bold text-xs">
+                                @{filterCreator}
+                            </Text>
+                            <Ionicons
+                                name="close-circle"
+                                size={14}
+                                color="#A855F7"
+                            />
+                        </Pressable>
+                    )}
+
+                    {/* Tag Filters */}
+                    {[
+                        "All",
+                        "Logic",
+                        "Maze",
+                        "Hard",
+                        "Speed",
+                        "Easy",
+                        "Creative",
+                    ].map((tag) => {
+                        const isSelected = filterTag === tag;
+                        return (
+                            <Pressable
+                                key={tag}
+                                onPress={() => setFilterTag(tag)}
+                                className={`px-3 py-1.5 rounded-xl border ${
+                                    isSelected
+                                        ? "bg-gray-800 dark:bg-gray-100 border-gray-900 dark:border-white"
+                                        : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                                }`}
+                            >
+                                <Text
+                                    className={`font-bold text-xs ${
+                                        isSelected
+                                            ? "text-white dark:text-gray-900"
+                                            : "text-gray-600 dark:text-gray-400"
+                                    }`}
+                                >
+                                    {tag === "All" ? tag : `${tag}`}
+                                </Text>
+                            </Pressable>
+                        );
+                    })}
+                </ScrollView>
             </View>
 
             {/* Community Levels List */}
             <FlatList
-                data={levels}
+                data={filteredLevels}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={{
                     paddingHorizontal: 24,
@@ -356,7 +459,13 @@ export default function CommunityScreen() {
                         >
                             {/* Top row: creator + metadata */}
                             <View className="flex-row items-center justify-between mb-3">
-                                <View className="flex-row items-center gap-2 flex-1">
+                                <Pressable
+                                    onPress={(e) => {
+                                        e.stopPropagation();
+                                        setFilterCreator(item.creator);
+                                    }}
+                                    className="flex-row items-center gap-2 flex-1"
+                                >
                                     <View className="bg-indigo-100 dark:bg-indigo-900/30 p-1.5 rounded-full">
                                         <Ionicons
                                             name="person"
@@ -374,7 +483,7 @@ export default function CommunityScreen() {
                                             </Text>
                                         </View>
                                     )}
-                                </View>
+                                </Pressable>
                                 <View className="flex-row items-center gap-3">
                                     <View className="flex-row items-center gap-1">
                                         <Ionicons
@@ -397,17 +506,27 @@ export default function CommunityScreen() {
                                 </View>
                             </View>
 
-                            {/* Bottom: play hint + votes */}
-                            <View className="flex-row items-center justify-between">
-                                <View className="flex-row items-center gap-1.5">
+                            {/* Bottom: play hint + tags + votes */}
+                            <View className="flex-row items-center justify-between mt-1">
+                                <View className="flex-row items-center gap-1.5 flex-1 flex-wrap pr-2">
                                     <Ionicons
                                         name="play-circle"
                                         size={18}
                                         color="#3B82F6"
                                     />
-                                    <Text className="text-blue-500 font-bold text-sm">
+                                    <Text className="text-blue-500 font-bold text-sm mr-2">
                                         Play
                                     </Text>
+                                    {item.tags?.map((t) => (
+                                        <View
+                                            key={t}
+                                            className="bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-md mr-1 mb-1 shadow-sm border border-gray-200 dark:border-gray-600"
+                                        >
+                                            <Text className="text-gray-500 dark:text-gray-400 text-[10px] font-bold">
+                                                #{t}
+                                            </Text>
+                                        </View>
+                                    ))}
                                 </View>
 
                                 <View className="flex-row items-center gap-2">
