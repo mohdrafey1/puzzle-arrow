@@ -48,6 +48,8 @@ const SFX_OPTIONS: Record<
             { name: "koshish_karna.m4a", label: "Koshish Karna" },
             { name: "libas_badlega.m4a", label: "Libas Badlega" },
             { name: "chii_sasur.mp3", label: "Chii Sasur" },
+            { name: "laparwahi.mp4", label: "Laparwahi" },
+            { name: "tata_bye.m4a", label: "Tata Bye" },
         ],
     },
     gamewin: {
@@ -57,6 +59,9 @@ const SFX_OPTIONS: Record<
             { name: "clapping_default.m4a", label: "Clapping" },
             { name: "sabash_beta.m4a", label: "Sabash Beta" },
             { name: "well_done.m4a", label: "Well Done" },
+            { name: "7-crore.mp4", label: "7 Crore" },
+            { name: "maza_aaya.mp4", label: "Maza Aaya" },
+            { name: "oh_my_god.mp4", label: "Oh My God" },
         ],
     },
 };
@@ -287,9 +292,31 @@ export default function MeSettings() {
                     className="flex-row items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700 active:bg-gray-50 dark:active:bg-gray-700"
                 >
                     <View className="flex-row items-center gap-3">
-                        <Ionicons name="trophy" size={20} color="#F59E0B" />
+                        <Ionicons
+                            name="checkmark-done"
+                            size={20}
+                            color="#10B981"
+                        />
                         <Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                             Completed Levels
+                        </Text>
+                    </View>
+                    <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={isDark ? "#6B7280" : "#9CA3AF"}
+                    />
+                </Pressable>
+
+                {/* Achievements */}
+                <Pressable
+                    onPress={() => router.push("/achievements")}
+                    className="flex-row items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700 active:bg-gray-50 dark:active:bg-gray-700"
+                >
+                    <View className="flex-row items-center gap-3">
+                        <Ionicons name="trophy" size={20} color="#F59E0B" />
+                        <Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            Achievements
                         </Text>
                     </View>
                     <Ionicons

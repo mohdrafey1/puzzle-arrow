@@ -19,6 +19,8 @@ interface GameBoardProps {
     onTap: (tile: TileData, onExitAnimation: () => void) => void;
     isResetting: boolean;
     errorTileId: string | null;
+    arrowColorOverride?: string | null;
+    boardThemeOverride?: string | null;
 }
 
 export const GameBoard = React.memo(function GameBoard({
@@ -28,9 +30,29 @@ export const GameBoard = React.memo(function GameBoard({
     onTap,
     isResetting,
     errorTileId,
+    arrowColorOverride,
+    boardThemeOverride,
 }: GameBoardProps) {
     const { colorScheme } = useColorScheme();
-    const dotColor = colorScheme === "dark" ? "#374151" : "#D1D5DB";
+
+    // Theme application logic
+    let dotColor = colorScheme === "dark" ? "#374151" : "#D1D5DB";
+    let bgClasses =
+        "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700";
+
+    if (boardThemeOverride === "theme_ocean") {
+        bgClasses =
+            "bg-cyan-50 dark:bg-cyan-900/40 border-cyan-200 dark:border-cyan-800";
+        dotColor = colorScheme === "dark" ? "#155E75" : "#67E8F9"; // cyan-800 : cyan-300
+    } else if (boardThemeOverride === "theme_forest") {
+        bgClasses =
+            "bg-emerald-50 dark:bg-emerald-900/40 border-emerald-200 dark:border-emerald-800";
+        dotColor = colorScheme === "dark" ? "#065F46" : "#6EE7B7"; // emerald-800 : emerald-300
+    } else if (boardThemeOverride === "theme_midnight") {
+        bgClasses =
+            "bg-slate-900 dark:bg-slate-950 border-slate-700 dark:border-slate-800";
+        dotColor = "#334155";
+    }
 
     const paddingBoard = 12;
     const availableWidth = width - 24;
@@ -127,7 +149,9 @@ export const GameBoard = React.memo(function GameBoard({
     };
 
     return (
-        <View className="flex-1 w-full items-center justify-center overflow-hidden rounded-3xl bg-white dark:bg-gray-800 shadow-xl border border-gray-200 dark:border-gray-700 relative">
+        <View
+            className={`flex-1 w-full items-center justify-center overflow-hidden rounded-3xl shadow-xl border relative ${bgClasses}`}
+        >
             <GestureDetector gesture={composed}>
                 <Animated.View
                     style={[
@@ -178,6 +202,9 @@ export const GameBoard = React.memo(function GameBoard({
                                             boardSize={boardSize}
                                             isResetting={isResetting}
                                             hasError={errorTileId === tile.id}
+                                            arrowColorOverride={
+                                                arrowColorOverride || undefined
+                                            }
                                         />
                                     ))}
                             </G>

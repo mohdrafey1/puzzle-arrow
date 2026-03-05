@@ -10,7 +10,7 @@ import Animated, {
 
 const { width: W, height: H } = Dimensions.get("window");
 
-const COLORS = [
+const DEFAULT_COLORS = [
     "#6366F1",
     "#EC4899",
     "#10B981",
@@ -24,18 +24,22 @@ const COLORS = [
     "#A855F7",
 ];
 
+const GOLD_COLORS = ["#FBBF24", "#F59E0B", "#D97706", "#FEF3C7", "#FFFFFF"];
+
+const NEON_COLORS = ["#39FF14", "#FF073A", "#00FFFF", "#FF00FF", "#FFFF00"];
+
 const NUM_PARTICLES = 60;
 
 function randomBetween(a: number, b: number) {
     return a + Math.random() * (b - a);
 }
 
-function Particle({ delay }: { delay: number }) {
+function Particle({ delay, colors }: { delay: number; colors: string[] }) {
     const x = useSharedValue(randomBetween(0, W));
     const y = useSharedValue(-20);
     const opacity = useSharedValue(0);
     const size = randomBetween(6, 14);
-    const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+    const color = colors[Math.floor(Math.random() * colors.length)];
     const dur = randomBetween(900, 1800);
 
     useEffect(() => {
@@ -76,8 +80,18 @@ function Particle({ delay }: { delay: number }) {
     );
 }
 
-export function ConfettiOverlay({ visible }: { visible: boolean }) {
+export function ConfettiOverlay({
+    visible,
+    themeId,
+}: {
+    visible: boolean;
+    themeId?: string | null;
+}) {
     if (!visible) return null;
+
+    let activeColors = DEFAULT_COLORS;
+    if (themeId === "confetti_gold") activeColors = GOLD_COLORS;
+    if (themeId === "confetti_neon") activeColors = NEON_COLORS;
 
     const particles = Array.from({ length: NUM_PARTICLES }, (_, i) => ({
         key: i,
@@ -87,7 +101,7 @@ export function ConfettiOverlay({ visible }: { visible: boolean }) {
     return (
         <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
             {particles.map((p) => (
-                <Particle key={p.key} delay={p.delay} />
+                <Particle key={p.key} delay={p.delay} colors={activeColors} />
             ))}
         </View>
     );

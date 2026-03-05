@@ -9,6 +9,11 @@ const SFX_VOLUME_KEY = "@sfx_volume";
 const LEVEL_CACHE_PREFIX = "@level_cache_";
 const COMPLETED_LEVELS_KEY = "@completed_levels";
 const LEADERBOARD_USERNAME_KEY = "@leaderboard_username";
+const ARROWS_BALANCE_KEY = "@arrows_balance";
+const STATS_KEY = "@user_stats";
+const UNLOCKED_ACHIEVEMENTS_KEY = "@unlocked_achievements";
+const ACTIVE_CUSTOMIZATION_KEY = "@active_customization";
+const UNLOCKED_ITEMS_KEY = "@unlocked_items";
 
 export type ThemeType = "light" | "dark" | "system";
 
@@ -246,6 +251,150 @@ export async function saveLevelDraft(draft: LevelDraft | null): Promise<void> {
             await AsyncStorage.setItem(LEVEL_DRAFT_KEY, JSON.stringify(draft));
         } else {
             await AsyncStorage.removeItem(LEVEL_DRAFT_KEY);
+        }
+    } catch {
+        // skip
+    }
+}
+
+// --- Progression & Currency ---
+
+export interface UserStats {
+    levelsCompleted: number;
+    communityLevelsBeaten: number;
+    levelsCreated: number;
+    completedCommunityLevelIds: string[];
+}
+
+const DEFAULT_STATS: UserStats = {
+    levelsCompleted: 0,
+    communityLevelsBeaten: 0,
+    levelsCreated: 0,
+    completedCommunityLevelIds: [],
+};
+
+export async function getArrowsBalance(): Promise<number> {
+    try {
+        const val = await AsyncStorage.getItem(ARROWS_BALANCE_KEY);
+        return val ? parseInt(val, 10) : 0;
+    } catch {
+        return 0;
+    }
+}
+
+export async function addArrows(amount: number): Promise<number> {
+    try {
+        const current = await getArrowsBalance();
+        const newBalance = Math.max(0, current + amount);
+        await AsyncStorage.setItem(ARROWS_BALANCE_KEY, newBalance.toString());
+        return newBalance;
+    } catch {
+        return 0;
+    }
+}
+
+export async function getUserStats(): Promise<UserStats> {
+    try {
+        const val = await AsyncStorage.getItem(STATS_KEY);
+        return val ? JSON.parse(val) : DEFAULT_STATS;
+    } catch {
+        return DEFAULT_STATS;
+    }
+}
+
+export async function updateUserStats(
+    updates: Partial<UserStats>,
+): Promise<UserStats> {
+    try {
+        const current = await getUserStats();
+        const next = { ...current, ...updates };
+        await AsyncStorage.setItem(STATS_KEY, JSON.stringify(next));
+        return next;
+    } catch {
+        return DEFAULT_STATS;
+    }
+}
+
+export async function getUnlockedAchievements(): Promise<string[]> {
+    try {
+        const val = await AsyncStorage.getItem(UNLOCKED_ACHIEVEMENTS_KEY);
+        return val ? JSON.parse(val) : [];
+    } catch {
+        return [];
+    }
+}
+
+export async function unlockAchievement(achievementId: string): Promise<void> {
+    try {
+        const current = await getUnlockedAchievements();
+        if (!current.includes(achievementId)) {
+            current.push(achievementId);
+            await AsyncStorage.setItem(
+                UNLOCKED_ACHIEVEMENTS_KEY,
+                JSON.stringify(current),
+            );
+        }
+    } catch {
+        // skip
+    }
+}
+
+// --- Customizations ---
+
+export interface ActiveCustomization {
+    arrowStyleId: string | null;
+    boardThemeId: string | null;
+    confettiId: string | null;
+}
+
+const DEFAULT_CUSTOMIZATION: ActiveCustomization = {
+    arrowStyleId: null,
+    boardThemeId: null,
+    confettiId: null,
+};
+
+export async function getActiveCustomization(): Promise<ActiveCustomization> {
+    try {
+        const val = await AsyncStorage.getItem(ACTIVE_CUSTOMIZATION_KEY);
+        return val ? JSON.parse(val) : DEFAULT_CUSTOMIZATION;
+    } catch {
+        return DEFAULT_CUSTOMIZATION;
+    }
+}
+
+export async function setActiveCustomization(
+    updates: Partial<ActiveCustomization>,
+): Promise<void> {
+    try {
+        const current = await getActiveCustomization();
+        const next = { ...current, ...updates };
+        await AsyncStorage.setItem(
+            ACTIVE_CUSTOMIZATION_KEY,
+            JSON.stringify(next),
+        );
+    } catch {
+        // skip
+    }
+}
+
+export async function getUnlockedItems(): Promise<string[]> {
+    try {
+        const val = await AsyncStorage.getItem(UNLOCKED_ITEMS_KEY);
+        return val ? JSON.parse(val) : [];
+    } catch {
+        return [];
+    }
+}
+
+export async function unlockItem(itemId: string): Promise<void> {
+    try {
+        const current = await getUnlockedItems();
+        if (!current.includes(itemId)) {
+            current.push(itemId);
+            await AsyncStorage.setItem(
+                UNLOCKED_ITEMS_KEY,
+                JSON.stringify(current),
+            );
         }
     } catch {
         // skip

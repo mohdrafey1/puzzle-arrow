@@ -14,6 +14,7 @@ import * as NavigationBar from "expo-navigation-bar";
 import * as Updates from "expo-updates";
 import { useEffect } from "react";
 import { Alert, Platform } from "react-native";
+import Toast from "react-native-toast-message";
 
 if (Platform.OS === "android") {
     NavigationBar.setPositionAsync("absolute");
@@ -34,15 +35,15 @@ export default function RootLayout() {
             if (update.isAvailable) {
                 await Updates.fetchUpdateAsync();
                 Alert.alert(
-                    "Update Available",
-                    "A new version of the app is available. Restart to apply?",
+                    "Update Required",
+                    "A new version of the app has been downloaded. The app must restart to apply the update.",
                     [
-                        { text: "Later", style: "cancel" },
                         {
-                            text: "Restart",
+                            text: "Restart Now",
                             onPress: () => Updates.reloadAsync(),
                         },
                     ],
+                    { cancelable: false },
                 );
             }
         } catch (error) {
@@ -82,6 +83,7 @@ export default function RootLayout() {
                 </Stack>
                 <StatusBar style="auto" />
             </ThemeProvider>
+            <Toast />
         </GestureHandlerRootView>
     );
 }

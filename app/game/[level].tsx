@@ -9,18 +9,28 @@ import Animated, {
     withSpring,
     withTiming,
 } from "react-native-reanimated";
+import Toast from "react-native-toast-message";
 import { ConfettiOverlay } from "../../components/ConfettiOverlay";
 import { GameBoard } from "../../components/GameBoard";
 import { LevelHeader } from "../../components/LevelHeader";
 import { useGameEngine } from "../../hooks/useGameEngine";
+import { checkNewAchievements } from "../../utils/achievements";
+import { ARROW_COLORS } from "../../utils/customizations";
 import { formatTime } from "../../utils/format";
 import { submitScore } from "../../utils/leaderboard";
 import { markPreviewPassed } from "../../utils/previewLevel";
 import {
+    ActiveCustomization,
+    addArrows,
+    getActiveCustomization,
     getLeaderboardUsername,
+    getUnlockedAchievements,
     getUnlockedLevel,
+    getUserStats,
     saveCompletedLevel,
     setUnlockedLevel,
+    unlockAchievement,
+    updateUserStats,
 } from "../../utils/storage";
 
 function getStars(hearts: number): number {
@@ -39,6 +49,21 @@ export default function GameScreen() {
     const [finalTime, setFinalTime] = useState(0);
     const savedCompletion = useRef(false);
 
+    // Customization State
+    const [customization, setCustomization] = useState<ActiveCustomization>({
+        arrowStyleId: null,
+        boardThemeId: null,
+        confettiId: null,
+    });
+
+    useEffect(() => {
+        getActiveCustomization().then(setCustomization);
+    }, []);
+
+    const activeArrowColorHex = customization.arrowStyleId
+        ? ARROW_COLORS.find((a) => a.id === customization.arrowStyleId)?.value
+        : null;
+
     const handleComplete = useCallback(async () => {
         // Skip save/unlock for preview levels from the editor
         if (isPreview) {
@@ -46,22 +71,67 @@ export default function GameScreen() {
             return;
         }
 
-        const unlocked = await getUnlockedLevel();
-        if (levelId >= unlocked) {
-            const newLevel = levelId + 1;
-            await setUnlockedLevel(newLevel);
+        // --- Progression & Achievements Logic ---
+        const currentStats = await getUserStats();
+        let statUpdates: any = {};
 
-            // Submit to leaderboard in background
-            try {
-                const username = await getLeaderboardUsername();
-                if (username) {
-                    submitScore(username, newLevel).catch(() => {});
-                }
-            } catch {
-                // silently fail — offline or not registered
+        if (isCommunity) {
+            // Check if this specific community level is already beaten
+            const alreadyBeaten =
+                currentStats.completedCommunityLevelIds.includes(
+                    levelId.toString(),
+                );
+            if (!alreadyBeaten) {
+                statUpdates.communityLevelsBeaten =
+                    currentStats.communityLevelsBeaten + 1;
+                statUpdates.completedCommunityLevelIds = [
+                    ...currentStats.completedCommunityLevelIds,
+                    levelId.toString(),
+                ];
+            }
+        } else {
+            // Normal campaign level
+            statUpdates.levelsCompleted = currentStats.levelsCompleted + 1;
+        }
+
+        const newStats = await updateUserStats(statUpdates);
+
+        // Check for new achievements
+        const unlockedIds = await getUnlockedAchievements();
+        const newlyUnlocked = checkNewAchievements(newStats, unlockedIds);
+
+        if (newlyUnlocked.length > 0) {
+            for (const ach of newlyUnlocked) {
+                await unlockAchievement(ach.id);
+                await addArrows(ach.arrowReward);
+                Toast.show({
+                    type: "success",
+                    text1: `🏆 Achievement Unlocked: ${ach.title}`,
+                    text2: `You earned ${ach.arrowReward} Arrows!`,
+                    visibilityTime: 4000,
+                    position: "top",
+                });
             }
         }
-    }, [levelId, isPreview]);
+
+        if (!isCommunity) {
+            const unlocked = await getUnlockedLevel();
+            if (levelId >= unlocked) {
+                const newLevel = levelId + 1;
+                await setUnlockedLevel(newLevel);
+
+                // Submit to leaderboard in background
+                try {
+                    const username = await getLeaderboardUsername();
+                    if (username) {
+                        submitScore(username, newLevel).catch(() => {});
+                    }
+                } catch {
+                    // silently fail — offline or not registered
+                }
+            }
+        }
+    }, [levelId, isPreview, isCommunity]);
 
     const {
         board,
@@ -97,14 +167,17 @@ export default function GameScreen() {
         if (isPreview) return;
         if (isComplete && finalTime > 0 && !savedCompletion.current) {
             savedCompletion.current = true;
-            saveCompletedLevel({
-                levelId,
-                time: finalTime,
-                heartsUsed: 3 - hearts,
-                stars,
-            });
+            // Only save time stats for Campaign levels
+            if (!isCommunity) {
+                saveCompletedLevel({
+                    levelId,
+                    time: finalTime,
+                    heartsUsed: 3 - hearts,
+                    stars,
+                });
+            }
         }
-    }, [isComplete, hearts, levelId, stars, finalTime, isPreview]);
+    }, [isComplete, hearts, levelId, stars, finalTime, isPreview, isCommunity]);
 
     // Card entrance animation (shared by completion & game over overlays)
     const cardScale = useSharedValue(0.6);
@@ -142,12 +215,13 @@ export default function GameScreen() {
                     onTap={handleTap}
                     isResetting={isResetting}
                     errorTileId={errorTileId}
+                    arrowColorOverride={activeArrowColorHex}
+                    boardThemeOverride={customization.boardThemeId}
                 />
             </View>
 
             {isComplete && (
                 <>
-                    <ConfettiOverlay visible={isComplete} />
                     <View
                         className="absolute inset-0 items-center justify-center"
                         style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
@@ -198,7 +272,10 @@ export default function GameScreen() {
                             </View>
 
                             <Text className="text-4xl font-black text-gray-900 dark:text-gray-100 mb-2 tracking-tight text-center">
-                                Level {levelId} {"\n"}
+                                {isCommunity
+                                    ? "Community Level"
+                                    : `Level ${levelId}`}{" "}
+                                {"\n"}
                                 <Text className="text-indigo-500">
                                     Cleared!
                                 </Text>
@@ -293,6 +370,10 @@ export default function GameScreen() {
                             </Pressable>
                         </Animated.View>
                     </View>
+                    <ConfettiOverlay
+                        visible={isComplete}
+                        themeId={customization.confettiId}
+                    />
                 </>
             )}
 
@@ -380,6 +461,8 @@ export default function GameScreen() {
                     </Animated.View>
                 </View>
             )}
+
+            <Toast />
         </View>
     );
 }

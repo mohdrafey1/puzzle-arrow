@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { Pressable, Text, View } from "react-native";
@@ -42,6 +43,32 @@ export default function Home() {
                     </Text>
                 </Pressable>
             </View>
+
+            {/* Community Banner */}
+            <Pressable
+                onPress={() => router.push("/daily")}
+                className="mt-8 bg-indigo-50 dark:bg-indigo-900/40 w-full max-w-sm rounded-[24px] overflow-hidden border border-indigo-100 dark:border-indigo-800 active:opacity-80"
+            >
+                <View className="p-5 flex-row items-center gap-4">
+                    <View className="w-12 h-12 bg-indigo-100 dark:bg-indigo-800/80 rounded-full items-center justify-center">
+                        <Ionicons name="planet" size={24} color="#6366f1" />
+                    </View>
+                    <View className="flex-1">
+                        <Text className="text-indigo-900 dark:text-indigo-100 font-bold text-lg mb-0.5">
+                            Play Community!
+                        </Text>
+                        <Text className="text-indigo-600 dark:text-indigo-300 text-sm leading-snug pr-2">
+                            Discover thousands of unique and challenging levels
+                            created by other players.
+                        </Text>
+                    </View>
+                    <Ionicons
+                        name="chevron-forward"
+                        size={24}
+                        color="#6366f1"
+                    />
+                </View>
+            </Pressable>
         </View>
     );
 }

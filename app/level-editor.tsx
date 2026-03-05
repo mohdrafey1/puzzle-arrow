@@ -18,6 +18,8 @@ import Animated, {
     useSharedValue,
 } from "react-native-reanimated";
 import Svg, { Circle, G, Line, Polygon, Rect } from "react-native-svg";
+import Toast from "react-native-toast-message";
+import { checkNewAchievements } from "../utils/achievements";
 import { submitCommunityLevel } from "../utils/communityLevels";
 import { Direction, Point } from "../utils/movement";
 import {
@@ -26,9 +28,14 @@ import {
     setPreviewLevel,
 } from "../utils/previewLevel";
 import {
+    addArrows,
     getLeaderboardUsername,
     getLevelDraft,
+    getUnlockedAchievements,
+    getUserStats,
     saveLevelDraft,
+    unlockAchievement,
+    updateUserStats,
 } from "../utils/storage";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -471,11 +478,40 @@ export default function LevelEditor() {
             pushHistory([], arrows);
             setCurrentPath([]);
 
-            Alert.alert(
-                "Shared! 🎉",
-                "Your level is now live in the Community tab.",
-                [{ text: "OK", onPress: () => router.back() }],
-            );
+            // Track stats & check achievements
+            const currentStats = await getUserStats();
+            const newStats = await updateUserStats({
+                levelsCreated: currentStats.levelsCreated + 1,
+            });
+            const unlockedIds = await getUnlockedAchievements();
+            const newlyUnlocked = checkNewAchievements(newStats, unlockedIds);
+
+            if (newlyUnlocked.length > 0) {
+                for (const ach of newlyUnlocked) {
+                    await unlockAchievement(ach.id);
+                    await addArrows(ach.arrowReward);
+                    Toast.show({
+                        type: "success",
+                        text1: `🏆 Achievement Unlocked: ${ach.title}`,
+                        text2: `You earned ${ach.arrowReward} Arrows!`,
+                        visibilityTime: 4000,
+                        position: "top",
+                    });
+                }
+            } else {
+                Toast.show({
+                    type: "success",
+                    text1: "Shared! 🎉",
+                    text2: "Your level is now live in the Community tab.",
+                    visibilityTime: 3000,
+                    position: "top",
+                });
+            }
+
+            // Small delay to let toast trigger before transitioning if we wanted
+            setTimeout(() => {
+                router.back();
+            }, 500);
         } catch (err: any) {
             Alert.alert(
                 "Error",

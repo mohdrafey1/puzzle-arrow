@@ -21,6 +21,7 @@ interface ArrowTileProps {
     boardSize: number;
     isResetting: boolean;
     hasError: boolean;
+    arrowColorOverride?: string;
 }
 
 export interface ArrowTileRef {
@@ -29,9 +30,21 @@ export interface ArrowTileRef {
 
 export const ArrowTile = React.memo(
     forwardRef<ArrowTileRef, ArrowTileProps>(
-        ({ tile, cellSize, boardSize, isResetting, hasError }, ref) => {
+        (
+            {
+                tile,
+                cellSize,
+                boardSize,
+                isResetting,
+                hasError,
+                arrowColorOverride,
+            },
+            ref,
+        ) => {
             const { colorScheme } = useColorScheme();
-            const tileColor = colorScheme === "dark" ? "#F9FAFB" : "#111827";
+            const tileColor =
+                arrowColorOverride ||
+                (colorScheme === "dark" ? "#F9FAFB" : "#111827");
             const actualColor = hasError ? "#EF4444" : tileColor;
 
             // Build Line Coordinates inside cell centers

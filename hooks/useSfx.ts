@@ -20,10 +20,15 @@ export const AUDIO_MAP: Record<string, any> = {
     "koshish_karna.m4a": require("../assets/audios/gameover/koshish_karna.m4a"),
     "libas_badlega.m4a": require("../assets/audios/gameover/libas_badlega.m4a"),
     "chii_sasur.mp3": require("../assets/audios/gameover/chii_sasur.mp3"),
+    "laparwahi.mp4": require("../assets/audios/gameover/laparwahi.mp4"),
+    "tata_bye.m4a": require("../assets/audios/gameover/tata_bye.m4a"),
     // gamewin
     "clapping_default.m4a": require("../assets/audios/gamewin/clapping_default.m4a"),
     "sabash_beta.m4a": require("../assets/audios/gamewin/sabash_beta.m4a"),
     "well_done.m4a": require("../assets/audios/gamewin/well_done.m4a"),
+    "7-crore.mp4": require("../assets/audios/gamewin/7-crore.mp4"),
+    "maza_aaya.mp4": require("../assets/audios/gamewin/maza_aaya.mp4"),
+    "oh_my_god.mp4": require("../assets/audios/gamewin/oh_my_god.mp4"),
 };
 
 export function useSfx() {
