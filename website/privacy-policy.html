@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy — Puzzle Arrow</title>
+    <meta name="description" content="Privacy Policy for Puzzle Arrow game.">
+    <link rel="icon" href="favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: #06080f;
+            color: #f0f6fc;
+            line-height: 1.7;
+        }
+
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            background: rgba(6, 8, 15, 0.85);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .navbar-inner {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .navbar-inner a {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: #f0f6fc;
+        }
+
+        .navbar-inner img {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+        }
+
+        .navbar-inner span {
+            font-weight: 800;
+            font-size: 1.15rem;
+        }
+
+        .navbar-inner span em {
+            font-style: normal;
+            color: #818cf8;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 7rem 2rem 4rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+        }
+
+        .last-updated {
+            color: #6e7681;
+            font-size: 0.85rem;
+            margin-bottom: 2.5rem;
+        }
+
+        h2 {
+            font-size: 1.35rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 0.75rem;
+            color: #818cf8;
+        }
+
+        p,
+        li {
+            color: #8b949e;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+        }
+
+        ul {
+            padding-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        a {
+            color: #818cf8;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: #8b949e;
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-top: 3rem;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: #f0f6fc;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="navbar-inner">
+            <a href="index.html">
+                <img src="icon-512.png" alt="Puzzle Arrow">
+                <span>Puzzle <em>Arrow</em></span>
+            </a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Privacy Policy</h1>
+        <p class="last-updated">Last updated: April 2, 2025</p>
+
+        <p>
+            Puzzle Arrow ("we", "our", or "the app") is an open-source puzzle game developed by Mohd Rafey.
+            This privacy policy explains how we handle information when you use our app.
+        </p>
+
+        <h2>Information We Collect</h2>
+        <p>
+            Puzzle Arrow is designed with privacy in mind. We collect minimal data to support game features:
+        </p>
+        <ul>
+            <li><strong>Game Progress:</strong> Your level progress, achievements, and customizations are stored locally
+                on your device using AsyncStorage.</li>
+            <li><strong>Community Levels:</strong> When you publish or play community levels, basic data (level data,
+                play counts, ratings) is stored on Firebase.</li>
+            <li><strong>Leaderboard Data:</strong> If you participate in leaderboards, your display name and scores are
+                stored on Firebase.</li>
+        </ul>
+
+        <h2>Advertising</h2>
+        <p>
+            We use Google AdMob to display advertisements. AdMob may collect certain device information and advertising
+            identifiers to serve personalized or non-personalized ads based on your preferences.
+            You can learn more about Google's data practices at
+            <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a>.
+        </p>
+
+        <h2>Third-Party Services</h2>
+        <p>The app uses the following third-party services:</p>
+        <ul>
+            <li><strong>Firebase (Google):</strong> For community levels, leaderboards, and real-time database. <a
+                    href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Firebase
+                    Privacy</a></li>
+            <li><strong>Google AdMob:</strong> For serving advertisements. <a
+                    href="https://support.google.com/admob/answer/6128543" target="_blank" rel="noopener">AdMob
+                    Privacy</a></li>
+        </ul>
+
+        <h2>Data Storage</h2>
+        <p>
+            Most game data (progress, settings, unlocked items) is stored locally on your device and is never
+            transmitted to our servers.
+            Community-related data is stored securely on Firebase servers.
+        </p>
+
+        <h2>Children's Privacy</h2>
+        <p>
+            Puzzle Arrow does not knowingly collect personal information from children under 13.
+            The game does not require account creation or personal information to play.
+        </p>
+
+        <h2>Changes to This Policy</h2>
+        <p>
+            We may update this privacy policy from time to time. Any changes will be reflected on this page with an
+            updated revision date.
+        </p>
+
+        <h2>Contact Us</h2>
+        <p>
+            If you have questions or concerns about this privacy policy, please contact us at
+            <a href="mailto:rafeycontact@gmail.com">rafeycontact@gmail.com</a>.
+        </p>
+
+        <a href="index.html" class="back-link">← Back to Home</a>
+    </div>
+</body>
+
+</html>

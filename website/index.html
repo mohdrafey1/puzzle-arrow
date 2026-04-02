@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puzzle Arrow — Mind-Bending Arrow Puzzle Game</title>
+    <meta name="description"
+        content="Guide arrows to their correct positions in this addictive puzzle game. Infinite levels, a built-in level editor, community creations, and unlockable customizations. Free on Google Play.">
+    <meta name="keywords" content="puzzle game, arrow puzzle, brain teaser, android game, puzzle arrow, logic game">
+    <meta name="author" content="Mohd Rafey">
+    <link rel="icon" href="favicon.ico">
+    <link rel="apple-touch-icon" href="icon-512.png">
+    <meta property="og:title" content="Puzzle Arrow — Mind-Bending Arrow Puzzle Game">
+    <meta property="og:description"
+        content="Guide arrows to their correct positions in this addictive puzzle game. Infinite levels, community creations, and unlockable customizations.">
+    <meta property="og:image" content="icon-512.png">
+    <meta property="og:type" content="website">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #06080f;
+            --bg-card: #0d1117;
+            --bg-card-hover: #161b22;
+            --text-primary: #f0f6fc;
+            --text-secondary: #8b949e;
+            --text-muted: #6e7681;
+            --accent: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.35);
+            --accent-light: #818cf8;
+            --blue: #3b82f6;
+            --cyan: #22d3ee;
+            --border: rgba(255, 255, 255, 0.06);
+            --border-accent: rgba(99, 102, 241, 0.25);
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* ─── Animated Background ─── */
+        .bg-mesh {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .bg-mesh .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.3;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        .bg-mesh .orb:nth-child(1) {
+            width: 600px;
+            height: 600px;
+            background: var(--accent);
+            top: -10%;
+            left: -10%;
+            animation-delay: 0s;
+        }
+
+        .bg-mesh .orb:nth-child(2) {
+            width: 500px;
+            height: 500px;
+            background: var(--blue);
+            top: 50%;
+            right: -15%;
+            animation-delay: -7s;
+            animation-duration: 25s;
+        }
+
+        .bg-mesh .orb:nth-child(3) {
+            width: 400px;
+            height: 400px;
+            background: var(--cyan);
+            bottom: -10%;
+            left: 30%;
+            animation-delay: -14s;
+            animation-duration: 22s;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            25% {
+                transform: translate(60px, -40px) scale(1.05);
+            }
+
+            50% {
+                transform: translate(-30px, 50px) scale(0.95);
+            }
+
+            75% {
+                transform: translate(40px, 20px) scale(1.02);
+            }
+        }
+
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ─── Navbar ─── */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            background: rgba(6, 8, 15, 0.7);
+            border-bottom: 1px solid var(--border);
+            transition: background 0.3s;
+        }
+
+        .navbar-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo img {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+        }
+
+        .logo-text {
+            font-weight: 800;
+            font-size: 1.25rem;
+            letter-spacing: -0.02em;
+        }
+
+        .logo-text span {
+            color: var(--accent-light);
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .btn-nav {
+            background: var(--accent);
+            color: white !important;
+            padding: 0.55rem 1.25rem;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.2s;
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .btn-nav:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0 30px var(--accent-glow);
+        }
+
+        /* ─── Hero Section ─── */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8rem 2rem 4rem;
+        }
+
+        .hero-inner {
+            max-width: 1200px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid var(--border-accent);
+            padding: 0.4rem 1rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            color: var(--accent-light);
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .hero-badge .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #22c55e;
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 900;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            margin-bottom: 1.5rem;
+            animation: fadeInUp 0.6s ease-out 0.1s both;
+        }
+
+        .hero h1 .gradient-text {
+            background: linear-gradient(135deg, var(--accent-light), var(--cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-desc {
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 2.5rem;
+            max-width: 480px;
+            animation: fadeInUp 0.6s ease-out 0.2s both;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            animation: fadeInUp 0.6s ease-out 0.3s both;
+        }
+
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            background: var(--accent);
+            color: white;
+            padding: 0.9rem 2rem;
+            border-radius: 14px;
+            font-weight: 700;
+            font-size: 1rem;
+            text-decoration: none;
+            transition: all 0.25s;
+            box-shadow: 0 4px 25px var(--accent-glow);
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 35px var(--accent-glow);
+        }
+
+        .btn-primary svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: transparent;
+            color: var(--text-secondary);
+            padding: 0.9rem 1.75rem;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 1rem;
+            text-decoration: none;
+            border: 1px solid var(--border);
+            transition: all 0.25s;
+            cursor: pointer;
+        }
+
+        .btn-secondary:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .hero-stats {
+            display: flex;
+            gap: 3rem;
+            margin-top: 3rem;
+            animation: fadeInUp 0.6s ease-out 0.4s both;
+        }
+
+        .stat {
+            text-align: left;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: 0.15rem;
+        }
+
+        /* Hero Visual */
+        .hero-visual {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            animation: fadeInUp 0.8s ease-out 0.3s both;
+        }
+
+        .phone-frame {
+            position: relative;
+            width: 300px;
+            height: 600px;
+            background: var(--bg-card);
+            border-radius: 40px;
+            border: 2px solid rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+            box-shadow:
+                0 0 0 1px rgba(255, 255, 255, 0.03),
+                0 25px 60px rgba(0, 0, 0, 0.5),
+                0 0 80px var(--accent-glow);
+        }
+
+        .phone-frame::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 28px;
+            background: var(--bg-primary);
+            border-radius: 0 0 20px 20px;
+            z-index: 2;
+        }
+
+        .phone-frame img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .phone-glow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+            z-index: -1;
+            animation: pulse-glow 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse-glow {
+
+            0%,
+            100% {
+                opacity: 0.5;
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            50% {
+                opacity: 0.8;
+                transform: translate(-50%, -50%) scale(1.1);
+            }
+        }
+
+        /* ─── Features Section ─── */
+        .features {
+            padding: 6rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid var(--border-accent);
+            padding: 0.35rem 1rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            color: var(--accent-light);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 1rem;
+        }
+
+        .section-title {
+            font-size: clamp(2rem, 3.5vw, 2.75rem);
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin-bottom: 1rem;
+        }
+
+        .section-desc {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin-bottom: 3rem;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 2rem;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .feature-card:hover {
+            border-color: var(--border-accent);
+            background: var(--bg-card-hover);
+            transform: translateY(-4px);
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.25rem;
+            font-size: 1.5rem;
+        }
+
+        .feature-icon.purple {
+            background: rgba(99, 102, 241, 0.15);
+        }
+
+        .feature-icon.blue {
+            background: rgba(59, 130, 246, 0.15);
+        }
+
+        .feature-icon.cyan {
+            background: rgba(34, 211, 238, 0.15);
+        }
+
+        .feature-icon.green {
+            background: rgba(34, 197, 94, 0.15);
+        }
+
+        .feature-icon.amber {
+            background: rgba(245, 158, 11, 0.15);
+        }
+
+        .feature-icon.rose {
+            background: rgba(244, 63, 94, 0.15);
+        }
+
+        .feature-card h3 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 0.6rem;
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        /* ─── CTA Section ─── */
+        .cta-section {
+            padding: 6rem 2rem;
+            text-align: center;
+        }
+
+        .cta-card {
+            max-width: 800px;
+            margin: 0 auto;
+            background: var(--bg-card);
+            border: 1px solid var(--border-accent);
+            border-radius: 28px;
+            padding: 4rem 3rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-card::before {
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        }
+
+        .cta-card h2 {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+        }
+
+        .cta-card p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-bottom: 2.5rem;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* ─── Footer ─── */
+        .footer {
+            border-top: 1px solid var(--border);
+            padding: 3rem 2rem;
+        }
+
+        .footer-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .footer-left img {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+        }
+
+        .footer-text {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .footer-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: var(--text-secondary);
+        }
+
+        /* ─── Animations ─── */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            opacity: 0;
+            transform: translateY(24px);
+            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+        }
+
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 900px) {
+            .hero-inner {
+                grid-template-columns: 1fr;
+                text-align: center;
+                gap: 3rem;
+            }
+
+            .hero-desc {
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            .hero-actions {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            .hero-stats {
+                justify-content: center;
+            }
+
+            .hero-visual {
+                order: -1;
+            }
+
+            .phone-frame {
+                width: 240px;
+                height: 480px;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .footer-inner {
+                flex-direction: column;
+                gap: 1.5rem;
+                text-align: center;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .hero-stats {
+                gap: 2rem;
+            }
+
+            .cta-card {
+                padding: 3rem 1.5rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Animated Background -->
+    <div class="bg-mesh" aria-hidden="true">
+        <div class="orb"></div>
+        <div class="orb"></div>
+        <div class="orb"></div>
+    </div>
+
+    <div class="content-wrapper">
+
+        <!-- Navbar -->
+        <nav class="navbar" id="navbar">
+            <div class="navbar-inner">
+                <a href="#" class="logo">
+                    <img src="icon-512.png" alt="Puzzle Arrow icon">
+                    <span class="logo-text">Puzzle <span>Arrow</span></span>
+                </a>
+                <ul class="nav-links">
+                    <li><a href="#features">Features</a></li>
+                    <li><a href="privacy-policy.html">Privacy</a></li>
+                    <li><a href="https://github.com/mohdrafey1/puzzle-arrow" target="_blank" rel="noopener">GitHub</a>
+                    </li>
+                    <li><a href="https://play.google.com/store/apps/details?id=com.mohdrafey1.puzzlearrow"
+                            class="btn-nav" target="_blank" rel="noopener">Download</a></li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Hero -->
+        <section class="hero" id="hero">
+            <div class="hero-inner">
+                <div>
+                    <div class="hero-badge">
+                        <span class="dot"></span>
+                        Open Source &amp; Free
+                    </div>
+                    <h1>
+                        Master the Art of<br>
+                        <span class="gradient-text">Puzzle Arrows</span>
+                    </h1>
+                    <p class="hero-desc">
+                        Guide arrows to their correct positions in this mind-bending puzzle game.
+                        Infinite levels, a built-in level editor, and a thriving community of creators.
+                    </p>
+                    <div class="hero-actions">
+                        <a href="https://play.google.com/store/apps/details?id=com.mohdrafey1.puzzlearrow"
+                            class="btn-primary" target="_blank" rel="noopener">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 0 1-.61-.92V2.734a1 1 0 0 1 .609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.199l2.302 2.302-2.302 2.302-2.593-2.302 2.593-2.302zM5.864 2.658L16.8 8.99l-2.302 2.302-8.635-8.635z" />
+                            </svg>
+                            Get on Google Play
+                        </a>
+                        <a href="https://github.com/mohdrafey1/puzzle-arrow" class="btn-secondary" target="_blank"
+                            rel="noopener">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                            </svg>
+                            View Source
+                        </a>
+                    </div>
+                    <div class="hero-stats">
+                        <div class="stat">
+                            <div class="stat-value">∞</div>
+                            <div class="stat-label">Levels</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">100%</div>
+                            <div class="stat-label">Free</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">Open</div>
+                            <div class="stat-label">Source</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hero-visual">
+                    <div style="position: relative;">
+                        <div class="phone-glow"></div>
+                        <div class="phone-frame">
+                            <img src="game-ss.jpeg" alt="Puzzle Arrow gameplay showing an arrow puzzle grid">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section class="features fade-in" id="features">
+            <div class="section-label">✦ Why Players Love It</div>
+            <h2 class="section-title">Everything you need in a puzzle game</h2>
+            <p class="section-desc">
+                From infinite levels to a powerful level editor, Puzzle Arrow is packed with features that keep you
+                coming back.
+            </p>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon purple">🧩</div>
+                    <h3>Infinite Levels</h3>
+                    <p>Play the built-in campaign or explore endless community-created levels. There's always a new
+                        challenge waiting.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon blue">🛠️</div>
+                    <h3>Level Editor</h3>
+                    <p>Create, test, and publish your own custom puzzles. Share your creations with the world and
+                        challenge other players.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon cyan">🏆</div>
+                    <h3>Achievements</h3>
+                    <p>Track your stats, unlock milestones, and earn Arrows — the in-game currency for unlocking
+                        customizations.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon green">🎨</div>
+                    <h3>Customization Shop</h3>
+                    <p>Unlock stylish arrow colors, vibrant board themes, and flashy confetti effects to personalize
+                        your game.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon amber">🌍</div>
+                    <h3>Community & Leaderboards</h3>
+                    <p>Share levels, rate others' creations, and compete on the global leaderboard. Join a growing
+                        community of puzzlers.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon rose">📴</div>
+                    <h3>Works Offline</h3>
+                    <p>Campaign gameplay, the level editor, and store purchases all work completely offline. Play
+                        anywhere, anytime.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Section -->
+        <section class="cta-section fade-in" id="download">
+            <div class="cta-card">
+                <h2>Ready to start solving?</h2>
+                <p>Download Puzzle Arrow for free and challenge your mind with hundreds of brain-bending puzzles.</p>
+                <a href="https://play.google.com/store/apps/details?id=com.mohdrafey1.puzzlearrow" class="btn-primary"
+                    target="_blank" rel="noopener">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                        <path
+                            d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 0 1-.61-.92V2.734a1 1 0 0 1 .609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.199l2.302 2.302-2.302 2.302-2.593-2.302 2.593-2.302zM5.864 2.658L16.8 8.99l-2.302 2.302-8.635-8.635z" />
+                    </svg>
+                    Download on Google Play
+                </a>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-inner">
+                <div class="footer-left">
+                    <img src="icon-512.png" alt="Puzzle Arrow">
+                    <span class="footer-text">© 2025 Puzzle Arrow by Mohd Rafey. All rights reserved.</span>
+                </div>
+                <ul class="footer-links">
+                    <li><a href="privacy-policy.html">Privacy Policy</a></li>
+                    <li><a href="https://github.com/mohdrafey1/puzzle-arrow" target="_blank" rel="noopener">GitHub</a>
+                    </li>
+                    <li><a href="mailto:rafeycontact@gmail.com">Contact</a></li>
+                </ul>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Scroll Animations -->
+    <script>
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+    </script>
+</body>
+
+</html>
