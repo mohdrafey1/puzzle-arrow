@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import { BannerAdWidget } from "../../components/BannerAdWidget";
 import { getUnlockedLevel } from "../../utils/storage";
 
 export default function Home() {
@@ -69,6 +70,12 @@ export default function Home() {
                     />
                 </View>
             </Pressable>
+
+            {/* Ad Banner */}
+            <View className="absolute bottom-4 left-0 right-0">
+                <BannerAdWidget />
+            </View>
         </View>
     );
 }
+

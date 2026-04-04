@@ -13,8 +13,9 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import * as NavigationBar from "expo-navigation-bar";
 import * as Updates from "expo-updates";
 import { useEffect } from "react";
-import { Alert, Platform } from "react-native";
+import { Alert, AppState, AppStateStatus, Platform } from "react-native";
 import Toast from "react-native-toast-message";
+import { preloadAppOpen, showAppOpen } from "../utils/ads";
 
 if (Platform.OS === "android") {
     NavigationBar.setPositionAsync("absolute");
@@ -56,6 +57,24 @@ export default function RootLayout() {
         if (!__DEV__) {
             checkForUpdates();
         }
+    }, []);
+
+    useEffect(() => {
+        preloadAppOpen();
+
+        const subscription = AppState.addEventListener(
+            "change",
+            (nextAppState: AppStateStatus) => {
+                if (nextAppState === "active") {
+                    showAppOpen();
+                    preloadAppOpen();
+                }
+            },
+        );
+
+        return () => {
+            subscription.remove();
+        };
     }, []);
 
     return (

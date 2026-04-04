@@ -3,6 +3,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useColorScheme } from "nativewind";
 import { useCallback, useState } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
+import { BannerAdWidget } from "../components/BannerAdWidget";
 import { formatTime } from "../utils/format";
 import { CompletionRecord, getCompletedLevels } from "../utils/storage";
 
@@ -106,6 +107,11 @@ export default function CompletedLevelsScreen() {
                     contentContainerStyle={{ paddingBottom: 40 }}
                 />
             )}
+
+            {/* Ad Banner */}
+            <View className="pb-2">
+                <BannerAdWidget />
+            </View>
         </View>
     );
 }

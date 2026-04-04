@@ -239,6 +239,11 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
         [haptic, playSfx], // ← only haptic + playSfx in deps — board/hearts read from refs
     );
 
+    const reviveGame = useCallback(() => {
+        setIsGameOver(false);
+        setHearts((prev) => prev + 1);
+    }, []);
+
     return {
         board,
         hearts,
@@ -250,5 +255,6 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
         elapsedSeconds,
         isComplete,
         isGameOver,
+        reviveGame,
     };
 }

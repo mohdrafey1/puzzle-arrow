@@ -1,7 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import {
+    isRewardedReady,
+    preloadInterstitial,
+    preloadRewarded,
+    shouldShowInterstitialOnCompletion,
+    shouldShowInterstitialOnGameOver,
+    showInterstitial,
+    showRewarded,
+} from "../../utils/ads";
 import Animated, {
     useAnimatedStyle,
     useSharedValue,
@@ -10,6 +19,7 @@ import Animated, {
     withTiming,
 } from "react-native-reanimated";
 import Toast from "react-native-toast-message";
+import { BannerAdWidget } from "../../components/BannerAdWidget";
 import { ConfettiOverlay } from "../../components/ConfettiOverlay";
 import { GameBoard } from "../../components/GameBoard";
 import { LevelHeader } from "../../components/LevelHeader";
@@ -48,6 +58,13 @@ export default function GameScreen() {
     const router = useRouter();
     const [finalTime, setFinalTime] = useState(0);
     const savedCompletion = useRef(false);
+    const [isWatchingAd, setIsWatchingAd] = useState(false);
+    const [rewardedLoaded, setRewardedLoaded] = useState(false);
+
+    useEffect(() => {
+        preloadInterstitial();
+        preloadRewarded();
+    }, [levelId]);
 
     // Customization State
     const [customization, setCustomization] = useState<ActiveCustomization>({
@@ -144,6 +161,7 @@ export default function GameScreen() {
         elapsedSeconds,
         isComplete,
         isGameOver,
+        reviveGame,
     } = useGameEngine(levelId, handleComplete);
 
     // Reset completion refs whenever level changes (or replay remounts this route)
@@ -158,6 +176,55 @@ export default function GameScreen() {
             setFinalTime(elapsedSeconds);
         }
     }, [isComplete, elapsedSeconds, finalTime]);
+
+    // Check if rewarded ad is ready when game over screen appears
+    useEffect(() => {
+        if (isGameOver) {
+            setRewardedLoaded(isRewardedReady());
+        }
+    }, [isGameOver]);
+
+    const handleNextLevel = async () => {
+        if (!isCommunity && !isPreview) {
+            const shouldShow = await shouldShowInterstitialOnCompletion();
+            if (shouldShow) {
+                await showInterstitial();
+            }
+        }
+        
+        if (isCommunity || isPreview) {
+            router.back();
+        } else if (isReplay) {
+            router.replace("/completed-levels");
+        } else {
+            router.replace(`/game/${levelId + 1}`);
+        }
+    };
+
+    const handleRetry = async () => {
+        if (!isCommunity && !isPreview) {
+            const shouldShow = await shouldShowInterstitialOnGameOver();
+            if (shouldShow) {
+                await showInterstitial();
+            }
+        }
+        resetLevel();
+    };
+
+    const handleRevive = async () => {
+        setIsWatchingAd(true);
+        const earned = await showRewarded();
+        setIsWatchingAd(false);
+        if (earned) {
+            reviveGame();
+        } else {
+            Toast.show({
+                type: "error",
+                text1: "Ad Failed",
+                text2: "Could not load ad. Try again.",
+            });
+        }
+    };
 
     const heartsUsed = 3 - hearts;
     const stars = getStars(hearts);
@@ -309,19 +376,7 @@ export default function GameScreen() {
 
                             {/* Primary action */}
                             <Pressable
-                                onPress={() =>
-                                    isCommunity
-                                        ? router.back()
-                                        : isPreview
-                                          ? router.back()
-                                          : isReplay
-                                            ? router.replace(
-                                                  "/completed-levels",
-                                              )
-                                            : router.replace(
-                                                  `/game/${levelId + 1}`,
-                                              )
-                                }
+                                onPress={handleNextLevel}
                                 className="bg-indigo-500 active:bg-indigo-600 w-full rounded-2xl mb-4 border-b-4 border-indigo-700 active:border-b-0 active:translate-y-[4px] py-4"
                             >
                                 <View className="flex-row items-center justify-center gap-2">
@@ -411,8 +466,33 @@ export default function GameScreen() {
                             again.
                         </Text>
 
+                        {isWatchingAd ? (
+                            <View className="mb-4 py-4 w-full items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-2xl">
+                                <ActivityIndicator size="large" color="#6366f1" />
+                                <Text className="mt-2 text-indigo-500 font-bold">Loading ad...</Text>
+                            </View>
+                        ) : (
+                            rewardedLoaded && (
+                                <Pressable
+                                    onPress={handleRevive}
+                                    className="bg-indigo-500 active:bg-indigo-600 w-full rounded-2xl mb-4 border-b-4 border-indigo-700 active:border-b-0 active:translate-y-[4px] py-4"
+                                >
+                                    <View className="flex-row items-center justify-center gap-2">
+                                        <Ionicons
+                                            name="videocam"
+                                            size={24}
+                                            color="white"
+                                        />
+                                        <Text className="text-white font-black text-lg tracking-wide uppercase">
+                                            Watch Ad to Revive
+                                        </Text>
+                                    </View>
+                                </Pressable>
+                            )
+                        )}
+
                         <Pressable
-                            onPress={resetLevel}
+                            onPress={handleRetry}
                             className="bg-red-500 active:bg-red-600 w-full rounded-2xl mb-4 border-b-4 border-red-700 active:border-b-0 active:translate-y-[4px] py-4"
                         >
                             <View className="flex-row items-center justify-center gap-2">
@@ -461,6 +541,10 @@ export default function GameScreen() {
                     </Animated.View>
                 </View>
             )}
+
+            <View className="w-full">
+                <BannerAdWidget />
+            </View>
 
             <Toast />
         </View>

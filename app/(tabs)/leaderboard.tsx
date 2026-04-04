@@ -20,6 +20,7 @@ import {
     fetchUserEntry,
     submitScore,
 } from "../../utils/leaderboard";
+import { BannerAdWidget } from "../../components/BannerAdWidget";
 import {
     getLeaderboardUsername,
     getUnlockedLevel,
@@ -283,6 +284,9 @@ export default function LeaderboardScreen() {
                     </Pressable>
                 )}
             </View>
+
+            {/* Ad Banner */}
+            <BannerAdWidget />
 
             {/* Leaderboard List */}
             <FlatList
