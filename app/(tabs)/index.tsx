@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
+import * as Sharing from "expo-sharing";
 import { useCallback, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { BannerAdWidget } from "../../components/BannerAdWidget";
@@ -21,6 +22,18 @@ export default function Home() {
         }, []),
     );
 
+    const shareApp = async () => {
+        try {
+            const message = `🎯 Check out Puzzle Arrow - the most addictive puzzle game! I've reached level ${unlocked}! Can you beat my score? Download now: https://play.google.com/store/apps/details?id=com.mohdrafey1.puzzlearrow`;
+
+            await Sharing.shareAsync(message, {
+                dialogTitle: "Share Puzzle Arrow",
+            });
+        } catch (error) {
+            console.error("Error sharing app:", error);
+        }
+    };
+
     return (
         <View className="flex-1 bg-gray-100 dark:bg-gray-900 items-center justify-center p-6">
             <Text className="text-4xl font-black text-gray-900 dark:text-gray-100 mb-8 tracking-tight">
@@ -41,6 +54,16 @@ export default function Home() {
                 >
                     <Text className="text-white text-xl font-bold">
                         Continue
+                    </Text>
+                </Pressable>
+
+                <Pressable
+                    className="bg-green-500 active:bg-green-600 w-full rounded-2xl py-3 items-center mb-4 shadow-md flex-row justify-center gap-2"
+                    onPress={shareApp}
+                >
+                    <Ionicons name="share-social" size={20} color="white" />
+                    <Text className="text-white text-lg font-bold">
+                        Share with Friends
                     </Text>
                 </Pressable>
             </View>
@@ -78,4 +101,3 @@ export default function Home() {
         </View>
     );
 }
-

@@ -113,6 +113,12 @@ export async function preloadInterstitial(): Promise<void> {
         await initializeAds();
         interstitialAd = InterstitialAd.createForAdRequest(
             AdUnitIds.interstitial,
+            {
+                requestNonPersonalizedAdsOnly: true,
+                // Exclude sensitive ad categories for family-friendly content
+                keywords: ['puzzle', 'game', 'family', 'kids'],
+                contentUrl: 'https://play.google.com/store/apps/details?id=com.mohdrafey1.puzzlearrow',
+            }
         );
 
         const unsubscribeLoaded = interstitialAd.addAdEventListener(
@@ -176,7 +182,12 @@ let isRewardedLoaded = false;
 export async function preloadRewarded(): Promise<void> {
     try {
         await initializeAds();
-        rewardedAd = RewardedAd.createForAdRequest(AdUnitIds.rewarded);
+        rewardedAd = RewardedAd.createForAdRequest(AdUnitIds.rewarded, {
+            requestNonPersonalizedAdsOnly: true,
+            // Exclude sensitive ad categories for family-friendly content
+            keywords: ['puzzle', 'game', 'family', 'kids'],
+            contentUrl: 'https://play.google.com/store/apps/details?id=com.mohdrafey1.puzzlearrow',
+        });
 
         const unsubscribeLoaded = rewardedAd.addAdEventListener(
             RewardedAdEventType.LOADED,
@@ -254,7 +265,12 @@ let isAppOpenLoaded = false;
 export async function preloadAppOpen(): Promise<void> {
     try {
         await initializeAds();
-        appOpenAd = AppOpenAd.createForAdRequest(AdUnitIds.appOpen);
+        appOpenAd = AppOpenAd.createForAdRequest(AdUnitIds.appOpen, {
+            requestNonPersonalizedAdsOnly: true,
+            // Exclude sensitive ad categories for family-friendly content
+            keywords: ['puzzle', 'game', 'family', 'kids'],
+            contentUrl: 'https://play.google.com/store/apps/details?id=com.mohdrafey1.puzzlearrow',
+        });
 
         const unsubscribeLoaded = appOpenAd.addAdEventListener(
             AdEventType.LOADED,

@@ -50,6 +50,9 @@ export function BannerAdWidget({
                 size={size}
                 requestOptions={{
                     requestNonPersonalizedAdsOnly: true,
+                    // Exclude sensitive ad categories for family-friendly content
+                    keywords: ['puzzle', 'game', 'family', 'kids'],
+                    contentUrl: 'https://play.google.com/store/apps/details?id=com.mohdrafey1.puzzlearrow',
                 }}
                 onAdLoaded={() => {
                     console.log("[BannerAd] Loaded successfully");

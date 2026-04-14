@@ -1,4 +1,4 @@
-import { AudioPlayer, createAudioPlayer, setAudioModeAsync } from "expo-audio";
+import { AudioPlayer, createAudioPlayer } from "expo-audio";
 import { useCallback, useEffect, useRef } from "react";
 import {
     DEFAULT_SFX_SELECTION,
@@ -52,10 +52,6 @@ export function useSfx() {
             sfxEnabled.current = enabled;
             selection.current = sel;
             volume.current = vol;
-
-            await setAudioModeAsync({
-                playsInSilentMode: true,
-            });
 
             // Preload each category
             const categories: SfxType[] = ["arrowout", "gameover", "gamewin"];

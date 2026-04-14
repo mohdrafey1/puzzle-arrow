@@ -5,6 +5,7 @@ import {
 } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { setAudioModeAsync } from "expo-audio";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import "../global.css";
@@ -57,6 +58,24 @@ export default function RootLayout() {
         if (!__DEV__) {
             checkForUpdates();
         }
+    }, []);
+
+    useEffect(() => {
+        // Configure audio mode once at app startup.
+        // Calling setAudioModeAsync (which triggers requestAudioFocus) per-component
+        // causes a slow binder call on the Android main thread → ANR.
+        // shouldDuckAndroid:true makes the OS focus request much lighter.
+        setAudioModeAsync({
+            playsInSilentMode: true,
+            // 'duckOthers' = request audio focus with ducking, not full exclusive focus.
+            // This makes the Android requestAudioFocus binder call lighter → prevents ANR.
+            interruptionMode: 'duckOthers',
+            allowsRecording: false,
+            shouldPlayInBackground: false,
+            shouldRouteThroughEarpiece: false,
+        }).catch(() => {
+            // Non-fatal: audio will still work, just may not duck other media
+        });
     }, []);
 
     useEffect(() => {
