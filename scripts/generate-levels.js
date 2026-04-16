@@ -1,16 +1,15 @@
 /**
- * Generate static level data for levels 501–1000.
- * Outputs 10 chunk files (chunk-10.json through chunk-19.json), 50 levels each.
+ * Generate static level data for levels 101–1000.
+ * Uses the v9 algorithm with progressive difficulty brackets.
  *
  * Usage:  node scripts/generate-levels.js
  */
 
-// We need seedrandom — the same library used in constants/levels.ts
 const seedrandom = require("seedrandom");
 const fs = require("fs");
 const path = require("path");
 
-// ─── Inline the shape + level generation logic (ported from TS) ────────
+// ─── Inline shape logic (must match constants/shapes.ts) ────────────
 
 const SHAPE_ORDER = [
     "square",
@@ -21,6 +20,10 @@ const SHAPE_ORDER = [
     "triangle",
     "lshape",
     "arrow",
+    "hourglass",
+    "ring",
+    "zigzag",
+    "plus_offset",
 ];
 
 function getShapeForLevel(id) {
@@ -113,6 +116,71 @@ function generateShapeMask(shape, size) {
             }
             return mask;
         }
+        case "hourglass": {
+            for (let y = 0; y < size; y++) {
+                const distFromCenter = Math.abs(y - cy);
+                const halfWidth = Math.max(1, Math.floor((distFromCenter / r) * r) + 1);
+                const startX = Math.floor(cx) - halfWidth + 1;
+                const endX = Math.ceil(cx) + halfWidth;
+                for (let x = Math.max(0, startX); x < Math.min(size, endX); x++) {
+                    mask[y][x] = true;
+                }
+            }
+            return mask;
+        }
+        case "ring": {
+            const outerR = 1.05;
+            const innerR = 0.45;
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
+                    const d = dist(x, y, cx, cy, r);
+                    mask[y][x] = d <= outerR && d >= innerR;
+                }
+            }
+            return mask;
+        }
+        case "zigzag": {
+            const bandWidth = Math.max(2, Math.floor(size * 0.35));
+            for (let y = 0; y < size; y++) {
+                const section = Math.floor((y / size) * 3);
+                let startX, endX;
+                if (section === 0) {
+                    startX = 0;
+                    endX = bandWidth + Math.floor(size * 0.2);
+                } else if (section === 1) {
+                    startX = size - bandWidth - Math.floor(size * 0.2);
+                    endX = size;
+                } else {
+                    startX = 0;
+                    endX = bandWidth + Math.floor(size * 0.2);
+                }
+                const rowInSection = y - Math.floor((section * size) / 3);
+                if (rowInSection <= 1 && section > 0) {
+                    startX = 0;
+                    endX = size;
+                }
+                for (let x = Math.max(0, startX); x < Math.min(size, endX); x++) {
+                    mask[y][x] = true;
+                }
+            }
+            return mask;
+        }
+        case "plus_offset": {
+            const armW = Math.max(2, Math.floor(size * 0.35));
+            const offset = Math.floor(size * 0.15);
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
+                    const inVertical =
+                        x >= Math.floor(cx) - Math.floor(armW / 2) + offset &&
+                        x < Math.floor(cx) + Math.ceil(armW / 2) + offset;
+                    const inHorizontal =
+                        y >= Math.floor(cy) - Math.floor(armW / 2) - offset &&
+                        y < Math.floor(cy) + Math.ceil(armW / 2) - offset;
+                    mask[y][x] = (inVertical || inHorizontal) && x < size && y < size && x >= 0 && y >= 0;
+                }
+            }
+            return mask;
+        }
         default:
             return makeGrid(size, true);
     }
@@ -128,9 +196,9 @@ function countActiveCells(mask) {
     return count;
 }
 
-// ─── Backward level generation (exact port from constants/levels.ts) ───
+// ─── Backward level generation (v9 with edgeBias param) ─────────────
 
-function tryGenerateBackward(rng, size, shape, activeCellCount, minLen, maxLen) {
+function tryGenerateBackward(rng, size, shape, activeCellCount, minLen, maxLen, edgeBias) {
     const occupied = Array(size)
         .fill(0)
         .map(() => Array(size).fill(false));
@@ -171,7 +239,7 @@ function tryGenerateBackward(rng, size, shape, activeCellCount, minLen, maxLen) 
             (c) =>
                 c.x === 0 || c.y === 0 || c.x === size - 1 || c.y === size - 1,
         );
-        if (edgeCells.length > 0 && rng() < 0.6) {
+        if (edgeCells.length > 0 && rng() < edgeBias) {
             head = edgeCells[Math.floor(rng() * edgeCells.length)];
         }
 
@@ -300,11 +368,15 @@ function generateSimpleFallback(rng, size, shape) {
     return tiles;
 }
 
+// ─── v9 generateLevel with progressive difficulty brackets ──────────
+
 function generateLevel(id) {
-    const round = Math.floor((id - 1) / 40);
+    // 60 levels per round (12 shapes * 5 levels each)
+    const round = Math.floor((id - 1) / 60);
     const levelInShape = (id - 1) % 5;
 
-    const baseSize = 6 + round * 5;
+    // Smoother grid growth: +2 per round instead of +5
+    const baseSize = 6 + round * 2;
     const calculatedSize = baseSize + levelInShape;
     const size = Math.min(calculatedSize, 25);
 
@@ -312,14 +384,58 @@ function generateLevel(id) {
     const shape = generateShapeMask(shapeName, size);
     const activeCellCount = countActiveCells(shape);
 
-    const minLen = 2;
-    const maxLen = Math.min(Math.floor(size / 3) + 3, 10);
+    // Progressive difficulty brackets
+    let minLen, maxLen, seedAttempts, fillTarget, edgeBias;
+
+    if (id <= 40) {
+        minLen = 2;
+        maxLen = Math.min(Math.floor(size / 3) + 3, 8);
+        seedAttempts = 30;
+        fillTarget = 0.9;
+        edgeBias = 0.6;
+    } else if (id <= 100) {
+        minLen = 2;
+        maxLen = Math.min(Math.floor(size / 3) + 3, 10);
+        seedAttempts = 25;
+        fillTarget = 0.9;
+        edgeBias = 0.55;
+    } else if (id <= 200) {
+        minLen = 3;
+        maxLen = Math.min(Math.floor(size / 3) + 4, 10);
+        seedAttempts = 20;
+        fillTarget = 0.9;
+        edgeBias = 0.5;
+    } else if (id <= 400) {
+        minLen = 3;
+        maxLen = Math.min(Math.floor(size / 3) + 4, 11);
+        seedAttempts = 15;
+        fillTarget = 0.92;
+        edgeBias = 0.45;
+    } else if (id <= 600) {
+        minLen = 4;
+        maxLen = Math.min(Math.floor(size / 3) + 5, 12);
+        seedAttempts = 12;
+        fillTarget = 0.93;
+        edgeBias = 0.4;
+    } else if (id <= 800) {
+        minLen = 4;
+        maxLen = Math.min(Math.floor(size / 2) + 2, 13);
+        seedAttempts = 10;
+        fillTarget = 0.94;
+        edgeBias = 0.35;
+    } else {
+        minLen = 5;
+        maxLen = Math.min(Math.floor(size / 2) + 3, 14);
+        seedAttempts = 8;
+        fillTarget = 0.95;
+        edgeBias = 0.3;
+    }
 
     let bestResult = [];
     let bestFill = 0;
 
-    for (let seedOffset = 0; seedOffset < 30; seedOffset++) {
-        const rng = seedrandom(`${id}_backward_v8_${seedOffset}`);
+    for (let seedOffset = 0; seedOffset < seedAttempts; seedOffset++) {
+        const rng = seedrandom(`${id}_backward_v9_${seedOffset}`);
         const result = tryGenerateBackward(
             rng,
             size,
@@ -327,6 +443,7 @@ function generateLevel(id) {
             activeCellCount,
             minLen,
             maxLen,
+            edgeBias,
         );
 
         if (result.filled > bestFill) {
@@ -334,7 +451,7 @@ function generateLevel(id) {
             bestResult = result.tiles;
         }
 
-        if (bestFill >= 0.9) break;
+        if (bestFill >= fillTarget) break;
     }
 
     if (bestResult.length === 0) {
@@ -346,18 +463,18 @@ function generateLevel(id) {
     return { id, size, tiles: bestResult };
 }
 
-// ─── Main: generate levels 501–1000 in chunks of 50 ───────────────────
+// ─── Main: generate levels 101–1000 in chunks of 50 ──────────────────
 
 const OUTPUT_DIR = path.join(__dirname, "..", "assets", "levels");
 const CHUNK_SIZE = 50;
-const START_LEVEL = 501;
+const START_LEVEL = 101;
 const END_LEVEL = 1000;
-const START_CHUNK_INDEX = 10; // chunk-10 through chunk-19
+const START_CHUNK_INDEX = 2; // chunk-2 through chunk-19
 
 const totalLevels = END_LEVEL - START_LEVEL + 1;
 const totalChunks = totalLevels / CHUNK_SIZE;
 
-console.log(`\n🎯 Generating levels ${START_LEVEL}–${END_LEVEL} (${totalLevels} levels, ${totalChunks} chunks)\n`);
+console.log(`\n🎯 Generating levels ${START_LEVEL}–${END_LEVEL} (${totalLevels} levels, ${totalChunks} chunks) with v9 difficulty\n`);
 
 const startTime = Date.now();
 
@@ -372,7 +489,6 @@ for (let c = 0; c < totalChunks; c++) {
         const level = generateLevel(id);
         levels.push(level);
 
-        // Progress indicator
         const pct = (((id - START_LEVEL + 1) / totalLevels) * 100).toFixed(1);
         process.stdout.write(`\r  ⏳ Level ${id}/${END_LEVEL} (${pct}%) — chunk-${chunkIndex}`);
     }
@@ -381,7 +497,9 @@ for (let c = 0; c < totalChunks; c++) {
     fs.writeFileSync(filePath, JSON.stringify(levels));
 
     const elapsed = ((Date.now() - chunkStart) / 1000).toFixed(1);
-    console.log(`\n  ✅ chunk-${chunkIndex}.json — levels ${fromLevel}–${toLevel} (${elapsed}s)`);
+    const avgArrows = (levels.reduce((s, l) => s + l.tiles.length, 0) / levels.length).toFixed(1);
+    const avgMinPath = (levels.reduce((s, l) => s + Math.min(...l.tiles.map(t => t.path.length)), 0) / levels.length).toFixed(1);
+    console.log(`\n  ✅ chunk-${chunkIndex}.json — levels ${fromLevel}–${toLevel} (${elapsed}s, avg ${avgArrows} arrows, min path ~${avgMinPath})`);
 }
 
 const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(1);

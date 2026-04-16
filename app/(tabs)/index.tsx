@@ -90,7 +90,7 @@ export default function Home() {
             >
                 <Ionicons name="share-social" size={20} color="white" />
                 <Text className="text-white text-lg font-bold">
-                    Share our App with Friends
+                    Share our App with Friends..
                 </Text>
             </Pressable>
 

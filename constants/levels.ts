@@ -29,6 +29,7 @@ function tryGenerateBackward(
     activeCellCount: number,
     minLen: number,
     maxLen: number,
+    edgeBias: number = 0.6,
 ): { tiles: Omit<TileData, "id">[]; filled: number } {
     const occupied = Array(size)
         .fill(0)
@@ -75,7 +76,7 @@ function tryGenerateBackward(
             (c) =>
                 c.x === 0 || c.y === 0 || c.x === size - 1 || c.y === size - 1,
         );
-        if (edgeCells.length > 0 && rng() < 0.6) {
+        if (edgeCells.length > 0 && rng() < edgeBias) {
             head = edgeCells[Math.floor(rng() * edgeCells.length)];
         }
 
@@ -215,13 +216,12 @@ function tryGenerateBackward(
 }
 
 export function generateLevel(id: number): LevelData {
-    // 40 levels per round (8 shapes * 5 levels each)
-    const round = Math.floor((id - 1) / 40);
+    // 60 levels per round (12 shapes * 5 levels each)
+    const round = Math.floor((id - 1) / 60);
     const levelInShape = (id - 1) % 5;
 
-    // First round base is 6. Second round base is 11, etc.
-    const baseSize = 6 + round * 5;
-    // Grid size increases by 1 each level inside the 5-level shape block
+    // Smoother grid growth: +2 per round instead of +5
+    const baseSize = 6 + round * 2;
     const calculatedSize = baseSize + levelInShape;
     // Cap at 25 to prevent unplayable density (tiles become too small)
     const size = Math.min(calculatedSize, 25);
@@ -230,20 +230,71 @@ export function generateLevel(id: number): LevelData {
     const shape = generateShapeMask(shapeName, size);
     const activeCellCount = countActiveCells(shape);
 
-    // Mixture of all lengths: allows short (2) up to some long arrows.
-    const minLen = 2;
-    // To get 80+ arrows in a smaller grid, average length must be smaller.
-    // For size 16 (level 101), maxLen = 6 -> avg length 4 -> ~64 arrows.
-    // For size 25 (max level), maxLen = 10 -> avg length 6 -> ~100 arrows.
-    const maxLen = Math.min(Math.floor(size / 3) + 3, 10);
+    // ── Progressive difficulty brackets ──────────────────────────────
+    // As levels increase, arrows get longer, boards get tighter,
+    // and the generator tries fewer seeds (= less perfect packing = harder).
+    let minLen: number;
+    let maxLen: number;
+    let seedAttempts: number;
+    let fillTarget: number;
+    let edgeBias: number;
+
+    if (id <= 40) {
+        // Tutorial: short arrows, generous generation
+        minLen = 2;
+        maxLen = Math.min(Math.floor(size / 3) + 3, 8);
+        seedAttempts = 30;
+        fillTarget = 0.9;
+        edgeBias = 0.6;
+    } else if (id <= 100) {
+        // Easy-Medium: slightly longer minimum
+        minLen = 2;
+        maxLen = Math.min(Math.floor(size / 3) + 3, 10);
+        seedAttempts = 25;
+        fillTarget = 0.9;
+        edgeBias = 0.55;
+    } else if (id <= 200) {
+        // Medium: no more trivial 2-cell arrows
+        minLen = 3;
+        maxLen = Math.min(Math.floor(size / 3) + 4, 10);
+        seedAttempts = 20;
+        fillTarget = 0.9;
+        edgeBias = 0.5;
+    } else if (id <= 400) {
+        // Medium-Hard: longer arrows, tighter packing
+        minLen = 3;
+        maxLen = Math.min(Math.floor(size / 3) + 4, 11);
+        seedAttempts = 15;
+        fillTarget = 0.92;
+        edgeBias = 0.45;
+    } else if (id <= 600) {
+        // Hard: even longer, fewer generation attempts
+        minLen = 4;
+        maxLen = Math.min(Math.floor(size / 3) + 5, 12);
+        seedAttempts = 12;
+        fillTarget = 0.93;
+        edgeBias = 0.4;
+    } else if (id <= 800) {
+        // Very Hard: dense interleaving
+        minLen = 4;
+        maxLen = Math.min(Math.floor(size / 2) + 2, 13);
+        seedAttempts = 10;
+        fillTarget = 0.94;
+        edgeBias = 0.35;
+    } else {
+        // Expert (801-1000+): maximum challenge
+        minLen = 5;
+        maxLen = Math.min(Math.floor(size / 2) + 3, 14);
+        seedAttempts = 8;
+        fillTarget = 0.95;
+        edgeBias = 0.3;
+    }
 
     let bestResult: Omit<TileData, "id">[] = [];
     let bestFill = 0;
 
-    // Backward generation is instant, so we can try generating 30 times
-    // and just pick the instance that packed the board the tightest!
-    for (let seedOffset = 0; seedOffset < 30; seedOffset++) {
-        const rng = seedrandom(`${id}_backward_v8_${seedOffset}`);
+    for (let seedOffset = 0; seedOffset < seedAttempts; seedOffset++) {
+        const rng = seedrandom(`${id}_backward_v9_${seedOffset}`);
         const result = tryGenerateBackward(
             rng,
             size,
@@ -251,6 +302,7 @@ export function generateLevel(id: number): LevelData {
             activeCellCount,
             minLen,
             maxLen,
+            edgeBias,
         );
 
         if (result.filled > bestFill) {
@@ -258,8 +310,7 @@ export function generateLevel(id: number): LevelData {
             bestResult = result.tiles;
         }
 
-        // If we filled 90% of the board with long snakes, that's incredibly good, just ship it!
-        if (bestFill >= 0.9) break;
+        if (bestFill >= fillTarget) break;
     }
 
     // Fallback: simpler generation for extreme edge cases like Level 1 where size is 6 and minLen is 2

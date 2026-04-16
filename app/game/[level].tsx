@@ -197,7 +197,9 @@ export default function GameScreen() {
         } else if (isReplay) {
             router.replace("/completed-levels");
         } else {
-            router.replace(`/game/${levelId + 1}`);
+            // Use setParams to update level in-place — avoids full unmount/remount
+            // of the screen, keeping SVG, gesture handlers, and audio alive.
+            router.setParams({ level: String(levelId + 1), replay: "" });
         }
     };
 
@@ -407,9 +409,7 @@ export default function GameScreen() {
 
                             {/* Replay */}
                             <Pressable
-                                onPress={() =>
-                                    router.replace(`/game/${levelId}`)
-                                }
+                                onPress={resetLevel}
                                 className="w-full py-4 rounded-2xl bg-gray-100 dark:bg-gray-800 border-b-4 border-gray-300 dark:border-gray-700 active:border-b-0 active:translate-y-[4px] active:bg-gray-200 dark:active:bg-gray-700"
                             >
                                 <View className="flex-row items-center justify-center gap-2">

@@ -1,5 +1,5 @@
 import { useColorScheme } from "nativewind";
-import React, { useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Dimensions, Pressable, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -105,6 +105,42 @@ export const GameBoard = React.memo(function GameBoard({
     // Track tile refs for imperative animations
     const tileRefs = useRef<Record<string, ArrowTileRef | null>>({});
 
+    // Reset refs only when a new level loads (boardSize changes), NOT on every
+    // tile removal. Clearing on board change would wipe refs mid-animation.
+    useEffect(() => {
+        tileRefs.current = {};
+    }, [boardSize]);
+
+    // Pre-build a spatial lookup: "x,y" -> TileData for O(1) tap detection
+    // Priority: head tiles first (so tapping a head takes precedence over body overlap)
+    const spatialMap = useMemo(() => {
+        const map = new Map<string, TileData>();
+        // First pass: assign each cell to the tile that occupies it (last writer wins)
+        const activeTiles = board.filter((t) => !t.removed);
+        for (const tile of activeTiles) {
+            for (const p of tile.path) {
+                map.set(`${p.x},${p.y}`, tile);
+            }
+        }
+        // Second pass: heads overwrite so they get tap priority
+        for (const tile of activeTiles) {
+            const head = tile.path[tile.path.length - 1];
+            map.set(`${head.x},${head.y}`, tile);
+        }
+        return map;
+    }, [board]);
+
+    const handleTapCell = (x: number, y: number) => {
+        // Ignore taps on inactive cells
+        if (!shape[y]?.[x]) return;
+
+        const tile = spatialMap.get(`${x},${y}`);
+        if (tile) {
+            const ref = tileRefs.current[tile.id];
+            onTap(tile, () => ref?.onExit());
+        }
+    };
+
     // Build a single SVG path for all dots (only active shape cells)
     const dotsPath = useMemo(() => {
         const parts: string[] = [];
@@ -122,31 +158,6 @@ export const GameBoard = React.memo(function GameBoard({
         }
         return parts.join(" ");
     }, [boardSize, cellSize, shape]);
-
-    const handleTapCell = (x: number, y: number) => {
-        // Ignore taps on inactive cells
-        if (!shape[y]?.[x]) return;
-
-        // Find highest z-index path that occupies this cell
-        // Prioritize tapping the actual "head" of an arrow over intersecting paths
-        const reversedBoard = [...board].reverse();
-        const headTile = reversedBoard.find(
-            (t) =>
-                !t.removed &&
-                t.path[t.path.length - 1].x === x &&
-                t.path[t.path.length - 1].y === y,
-        );
-        const tile =
-            headTile ||
-            reversedBoard.find(
-                (t) => !t.removed && t.path.some((p) => p.x === x && p.y === y),
-            );
-
-        if (tile) {
-            const ref = tileRefs.current[tile.id];
-            onTap(tile, () => ref?.onExit());
-        }
-    };
 
     return (
         <View

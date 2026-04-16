@@ -10,7 +10,11 @@ export type ShapeName =
     | "cross"
     | "triangle"
     | "lshape"
-    | "arrow";
+    | "arrow"
+    | "hourglass"
+    | "ring"
+    | "zigzag"
+    | "plus_offset";
 /** All shapes in order — levels cycle through them every 5 levels */
 export const SHAPE_ORDER: ShapeName[] = [
     "square",
@@ -21,6 +25,10 @@ export const SHAPE_ORDER: ShapeName[] = [
     "triangle",
     "lshape",
     "arrow",
+    "hourglass",
+    "ring",
+    "zigzag",
+    "plus_offset",
 ];
 /** Get shape for a given level id */
 export function getShapeForLevel(id: number): ShapeName {
@@ -120,6 +128,82 @@ export function generateShapeMask(shape: ShapeName, size: number): boolean[][] {
                         x >= headStart &&
                         Math.abs(y - midY) <= (size - x) * 0.7;
                     mask[y][x] = inShaft || inHead;
+                }
+            }
+            return mask;
+        }
+        case "hourglass": {
+            // Two triangles meeting at the center — wide at top/bottom, narrow in middle
+            for (let y = 0; y < size; y++) {
+                const distFromCenter = Math.abs(y - cy);
+                const halfWidth = Math.max(1, Math.floor((distFromCenter / r) * r) + 1);
+                const startX = Math.floor(cx) - halfWidth + 1;
+                const endX = Math.ceil(cx) + halfWidth;
+                for (let x = Math.max(0, startX); x < Math.min(size, endX); x++) {
+                    mask[y][x] = true;
+                }
+            }
+            return mask;
+        }
+        case "ring": {
+            // Donut shape — circle with a hole in the center
+            const outerR = 1.05;
+            const innerR = 0.45;
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
+                    const d = dist(x, y, cx, cy, r);
+                    mask[y][x] = d <= outerR && d >= innerR;
+                }
+            }
+            return mask;
+        }
+        case "zigzag": {
+            // S-shaped / zigzag band that winds across the board
+            const bandWidth = Math.max(2, Math.floor(size * 0.35));
+            for (let y = 0; y < size; y++) {
+                // 3 horizontal sections, shifting left-right-left
+                const section = Math.floor((y / size) * 3);
+                let startX: number, endX: number;
+                if (section === 0) {
+                    // Top: left-aligned
+                    startX = 0;
+                    endX = bandWidth + Math.floor(size * 0.2);
+                } else if (section === 1) {
+                    // Middle: right-aligned
+                    startX = size - bandWidth - Math.floor(size * 0.2);
+                    endX = size;
+                } else {
+                    // Bottom: left-aligned
+                    startX = 0;
+                    endX = bandWidth + Math.floor(size * 0.2);
+                }
+                // Bridge rows between sections
+                const rowInSection = y - Math.floor((section * size) / 3);
+                if (rowInSection <= 1 && section > 0) {
+                    startX = 0;
+                    endX = size;
+                }
+                for (let x = Math.max(0, startX); x < Math.min(size, endX); x++) {
+                    mask[y][x] = true;
+                }
+            }
+            return mask;
+        }
+        case "plus_offset": {
+            // Plus/cross but offset — two overlapping rectangles, shifted
+            const armW = Math.max(2, Math.floor(size * 0.35));
+            const offset = Math.floor(size * 0.15);
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
+                    // Vertical bar (shifted right)
+                    const inVertical =
+                        x >= Math.floor(cx) - Math.floor(armW / 2) + offset &&
+                        x < Math.floor(cx) + Math.ceil(armW / 2) + offset;
+                    // Horizontal bar (shifted up)
+                    const inHorizontal =
+                        y >= Math.floor(cy) - Math.floor(armW / 2) - offset &&
+                        y < Math.floor(cy) + Math.ceil(armW / 2) - offset;
+                    mask[y][x] = (inVertical || inHorizontal) && x < size && y < size && x >= 0 && y >= 0;
                 }
             }
             return mask;

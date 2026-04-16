@@ -2,7 +2,7 @@ import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getStaticLevel } from "../assets/levels";
 import { generateLevel, LevelData, restoreShape } from "../constants/levels";
-import { canMove, TileData } from "../utils/movement";
+import { buildOccupiedGrid, canMove, clearTileFromGrid, TileData } from "../utils/movement";
 import { getPreviewLevel } from "../utils/previewLevel";
 import { getHapticsEnabled } from "../utils/storage";
 import { useSfx } from "./useSfx";
@@ -55,6 +55,7 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
 
     const animationLock = useRef(false);
     const hapticsEnabled = useRef(true);
+    const occupiedGridRef = useRef<boolean[][] | null>(null);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const { playSfx } = useSfx();
 
@@ -83,6 +84,7 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
         const newBoard = buildBoard(data.tiles, levelId, 0);
         boardRef.current = newBoard;
         setBoard(newBoard);
+        occupiedGridRef.current = buildOccupiedGrid(newBoard, data.size);
     }, [levelId]);
 
     // Load haptics preference
@@ -141,6 +143,7 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
                 );
                 boardRef.current = newBoard;
                 setBoard(newBoard);
+                occupiedGridRef.current = buildOccupiedGrid(newBoard, levelDataRef.current.size);
                 return nextAttempt;
             });
             setHearts(3);
@@ -204,6 +207,7 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
                     boardRef.current,
                     levelDataRef.current.size,
                     levelDataRef.current.shape,
+                    occupiedGridRef.current ?? undefined,
                 )
             ) {
                 haptic("light");
@@ -212,6 +216,10 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
                 boardRef.current = boardRef.current.map((t) =>
                     t.id === tile.id ? { ...t, removed: true } : t,
                 );
+                // Immediately update cached grid so next tap sees correct state
+                if (occupiedGridRef.current) {
+                    clearTileFromGrid(occupiedGridRef.current, tile);
+                }
                 animationLock.current = false;
                 setTimeout(() => {
                     removeTileRef.current(tile.id);
