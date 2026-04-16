@@ -8,6 +8,16 @@ import chunk6 from "./chunk-6.json";
 import chunk7 from "./chunk-7.json";
 import chunk8 from "./chunk-8.json";
 import chunk9 from "./chunk-9.json";
+import chunk10 from "./chunk-10.json";
+import chunk11 from "./chunk-11.json";
+import chunk12 from "./chunk-12.json";
+import chunk13 from "./chunk-13.json";
+import chunk14 from "./chunk-14.json";
+import chunk15 from "./chunk-15.json";
+import chunk16 from "./chunk-16.json";
+import chunk17 from "./chunk-17.json";
+import chunk18 from "./chunk-18.json";
+import chunk19 from "./chunk-19.json";
 
 export function getStaticLevel(id: number): any | null {
     if (id >= 1 && id <= 50) return (chunk0 as any[])[id - 1];
@@ -20,5 +30,15 @@ export function getStaticLevel(id: number): any | null {
     if (id >= 351 && id <= 400) return (chunk7 as any[])[id - 351];
     if (id >= 401 && id <= 450) return (chunk8 as any[])[id - 401];
     if (id >= 451 && id <= 500) return (chunk9 as any[])[id - 451];
+    if (id >= 501 && id <= 550) return (chunk10 as any[])[id - 501];
+    if (id >= 551 && id <= 600) return (chunk11 as any[])[id - 551];
+    if (id >= 601 && id <= 650) return (chunk12 as any[])[id - 601];
+    if (id >= 651 && id <= 700) return (chunk13 as any[])[id - 651];
+    if (id >= 701 && id <= 750) return (chunk14 as any[])[id - 701];
+    if (id >= 751 && id <= 800) return (chunk15 as any[])[id - 751];
+    if (id >= 801 && id <= 850) return (chunk16 as any[])[id - 801];
+    if (id >= 851 && id <= 900) return (chunk17 as any[])[id - 851];
+    if (id >= 901 && id <= 950) return (chunk18 as any[])[id - 901];
+    if (id >= 951 && id <= 1000) return (chunk19 as any[])[id - 951];
     return null;
 }
