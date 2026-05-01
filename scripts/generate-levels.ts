@@ -1,17 +1,17 @@
-import fs from "fs";
-import path from "path";
-import { generateLevel } from "../constants/levels";
+import fs from 'fs';
+import path from 'path';
+import { generateLevel } from '../constants/levels';
 
 async function run() {
-    console.log("Generating 1-500 levels in chunks...");
-    const maxLevels = 500;
+    console.log('Generating 1-1000 levels in chunks...');
+    const maxLevels = 1000;
     const chunkSize = 50;
     const chunksCount = Math.ceil(maxLevels / chunkSize);
 
-    const levelsDir = path.resolve(__dirname, "../assets/levels");
+    const levelsDir = path.resolve(__dirname, '../assets/levels');
     if (!fs.existsSync(levelsDir)) fs.mkdirSync(levelsDir, { recursive: true });
 
-    let indexTsContent = "";
+    let indexTsContent = '';
 
     for (let c = 0; c < chunksCount; c++) {
         const chunkLevels = [];
@@ -39,7 +39,7 @@ async function run() {
     }
     indexTsContent += `    return null;\n}\n`;
 
-    fs.writeFileSync(path.join(levelsDir, "index.ts"), indexTsContent);
+    fs.writeFileSync(path.join(levelsDir, 'index.ts'), indexTsContent);
     console.log(
         `\nSuccess! Wrote ${chunksCount} chunks and index.ts to assets/levels/`,
     );

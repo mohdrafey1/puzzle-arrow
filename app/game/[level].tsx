@@ -1,7 +1,21 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import Animated, {
+    useAnimatedStyle,
+    useSharedValue,
+    withDelay,
+    withSpring,
+    withTiming,
+} from 'react-native-reanimated';
+import Toast from 'react-native-toast-message';
+import { BannerAdWidget } from '../../components/BannerAdWidget';
+import { ConfettiOverlay } from '../../components/ConfettiOverlay';
+import { GameBoard } from '../../components/GameBoard';
+import { LevelHeader } from '../../components/LevelHeader';
+import { useGameEngine } from '../../hooks/useGameEngine';
+import { checkNewAchievements } from '../../utils/achievements';
 import {
     isRewardedReady,
     preloadInterstitial,
@@ -10,25 +24,11 @@ import {
     shouldShowInterstitialOnGameOver,
     showInterstitial,
     showRewarded,
-} from "../../utils/ads";
-import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withDelay,
-    withSpring,
-    withTiming,
-} from "react-native-reanimated";
-import Toast from "react-native-toast-message";
-import { BannerAdWidget } from "../../components/BannerAdWidget";
-import { ConfettiOverlay } from "../../components/ConfettiOverlay";
-import { GameBoard } from "../../components/GameBoard";
-import { LevelHeader } from "../../components/LevelHeader";
-import { useGameEngine } from "../../hooks/useGameEngine";
-import { checkNewAchievements } from "../../utils/achievements";
-import { ARROW_COLORS } from "../../utils/customizations";
-import { formatTime } from "../../utils/format";
-import { submitScore } from "../../utils/leaderboard";
-import { markPreviewPassed } from "../../utils/previewLevel";
+} from '../../utils/ads';
+import { ARROW_COLORS } from '../../utils/customizations';
+import { formatTime } from '../../utils/format';
+import { submitScore } from '../../utils/leaderboard';
+import { markPreviewPassed } from '../../utils/previewLevel';
 import {
     ActiveCustomization,
     addArrows,
@@ -41,7 +41,7 @@ import {
     setUnlockedLevel,
     unlockAchievement,
     updateUserStats,
-} from "../../utils/storage";
+} from '../../utils/storage';
 
 function getStars(hearts: number): number {
     if (hearts >= 3) return 3;
@@ -52,9 +52,9 @@ function getStars(hearts: number): number {
 export default function GameScreen() {
     const { level, replay, source } = useLocalSearchParams();
     const levelId = parseInt(level as string, 10);
-    const isReplay = replay === "true";
+    const isReplay = replay === 'true';
     const isPreview = levelId === 0;
-    const isCommunity = source === "community";
+    const isCommunity = source === 'community';
     const router = useRouter();
     const [finalTime, setFinalTime] = useState(0);
     const savedCompletion = useRef(false);
@@ -122,11 +122,11 @@ export default function GameScreen() {
                 await unlockAchievement(ach.id);
                 await addArrows(ach.arrowReward);
                 Toast.show({
-                    type: "success",
+                    type: 'success',
                     text1: `🏆 Achievement Unlocked: ${ach.title}`,
                     text2: `You earned ${ach.arrowReward} Arrows!`,
                     visibilityTime: 4000,
-                    position: "top",
+                    position: 'top',
                 });
             }
         }
@@ -191,11 +191,11 @@ export default function GameScreen() {
                 await showInterstitial();
             }
         }
-        
+
         if (isCommunity || isPreview) {
             router.back();
         } else if (isReplay) {
-            router.replace("/completed-levels");
+            router.replace('/completed-levels');
         } else {
             router.replace(`/game/${levelId + 1}`);
         }
@@ -219,9 +219,9 @@ export default function GameScreen() {
             reviveGame();
         } else {
             Toast.show({
-                type: "error",
-                text1: "Ad Failed",
-                text2: "Could not load ad. Try again.",
+                type: 'error',
+                text1: 'Ad Failed',
+                text2: 'Could not load ad. Try again.',
             });
         }
     };
@@ -259,11 +259,11 @@ export default function GameScreen() {
     }));
 
     return (
-        <View className="flex-1 bg-gray-50 dark:bg-gray-900 p-2 pt-8">
+        <View className='flex-1 bg-gray-50 dark:bg-gray-900 p-2 pt-4'>
             <LevelHeader
                 levelId={isPreview ? 0 : levelId}
                 levelLabel={
-                    isCommunity ? "-" : isPreview ? "Preview" : undefined
+                    isCommunity ? '-' : isPreview ? 'Preview' : undefined
                 }
                 hearts={hearts}
                 elapsedSeconds={
@@ -272,7 +272,7 @@ export default function GameScreen() {
                 arrowsRemaining={board.filter((t) => !t.removed).length}
             />
 
-            <View className="flex-1 w-full items-center justify-center">
+            <View className='flex-1 w-full items-center justify-center'>
                 <GameBoard
                     // Create a stable array of arrows so GameBoard only updates when board changes,
                     // not every 1000ms from elapsedSeconds incrementing.
@@ -290,41 +290,41 @@ export default function GameScreen() {
             {isComplete && (
                 <>
                     <View
-                        className="absolute inset-0 items-center justify-center"
-                        style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+                        className='absolute inset-0 items-center justify-center'
+                        style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
                     >
                         <Animated.View
-                            className="mx-6 w-[85%] max-w-sm bg-white dark:bg-gray-800 rounded-[32px] p-8 items-center shadow-black/30 shadow-[0px_20px_40px_rgba(0,0,0,0.25)] border border-gray-100 dark:border-gray-700 overflow-hidden"
+                            className='mx-6 w-[85%] max-w-sm bg-white dark:bg-gray-800 rounded-[32px] p-8 items-center shadow-black/30 shadow-[0px_20px_40px_rgba(0,0,0,0.25)] border border-gray-100 dark:border-gray-700 overflow-hidden'
                             style={cardStyle}
                         >
                             {/* Decorative background circle */}
-                            <View className="absolute -top-20 -right-20 w-40 h-40 bg-indigo-50 dark:bg-indigo-900/20 rounded-full" />
-                            <View className="absolute -bottom-20 -left-20 w-40 h-40 bg-pink-50 dark:bg-pink-900/20 rounded-full" />
+                            <View className='absolute -top-20 -right-20 w-40 h-40 bg-indigo-50 dark:bg-indigo-900/20 rounded-full' />
+                            <View className='absolute -bottom-20 -left-20 w-40 h-40 bg-pink-50 dark:bg-pink-900/20 rounded-full' />
 
                             {/* Stars */}
-                            <View className="flex-row items-center justify-center gap-3 mb-6 mt-4">
+                            <View className='flex-row items-center justify-center gap-3 mb-6 mt-4'>
                                 {Array.from({ length: 3 }).map((_, i) => (
                                     <View
                                         key={i}
-                                        className={`transform ${i === 1 ? "-translate-y-4" : ""}`}
+                                        className={`transform ${i === 1 ? '-translate-y-4' : ''}`}
                                     >
                                         <Ionicons
                                             name={
                                                 i < stars
-                                                    ? "star"
-                                                    : "star-outline"
+                                                    ? 'star'
+                                                    : 'star-outline'
                                             }
                                             size={i === 1 ? 56 : 44}
                                             color={
                                                 i < stars
-                                                    ? "#FBBF24"
-                                                    : "#D1D5DB"
+                                                    ? '#FBBF24'
+                                                    : '#D1D5DB'
                                             }
                                             style={
                                                 i < stars
                                                     ? {
                                                           textShadowColor:
-                                                              "rgba(251, 191, 36, 0.4)",
+                                                              'rgba(251, 191, 36, 0.4)',
                                                           textShadowOffset: {
                                                               width: 0,
                                                               height: 4,
@@ -338,37 +338,37 @@ export default function GameScreen() {
                                 ))}
                             </View>
 
-                            <Text className="text-4xl font-black text-gray-900 dark:text-gray-100 mb-2 tracking-tight text-center">
+                            <Text className='text-4xl font-black text-gray-900 dark:text-gray-100 mb-2 tracking-tight text-center'>
                                 {isCommunity
-                                    ? "Community Level"
-                                    : `Level ${levelId}`}{" "}
-                                {"\n"}
-                                <Text className="text-indigo-500">
+                                    ? 'Community Level'
+                                    : `Level ${levelId}`}{' '}
+                                {'\n'}
+                                <Text className='text-indigo-500'>
                                     Cleared!
                                 </Text>
                             </Text>
 
                             {/* Stats */}
-                            <View className="flex-row gap-4 mb-8 mt-4 w-full justify-center">
-                                <View className="bg-gray-100 dark:bg-gray-700 px-4 py-2.5 rounded-2xl flex-row items-center gap-2 border border-gray-200 dark:border-gray-600">
+                            <View className='flex-row gap-4 mb-8 mt-4 w-full justify-center'>
+                                <View className='bg-gray-100 dark:bg-gray-700 px-4 py-2.5 rounded-2xl flex-row items-center gap-2 border border-gray-200 dark:border-gray-600'>
                                     <Ionicons
-                                        name="time"
+                                        name='time'
                                         size={20}
-                                        color="#818CF8"
+                                        color='#818CF8'
                                     />
-                                    <Text className="text-gray-700 dark:text-gray-300 font-bold text-base">
+                                    <Text className='text-gray-700 dark:text-gray-300 font-bold text-base'>
                                         {formatTime(
                                             finalTime || elapsedSeconds,
                                         )}
                                     </Text>
                                 </View>
-                                <View className="bg-gray-100 dark:bg-gray-700 px-4 py-2.5 rounded-2xl flex-row items-center gap-2 border border-gray-200 dark:border-gray-600">
+                                <View className='bg-gray-100 dark:bg-gray-700 px-4 py-2.5 rounded-2xl flex-row items-center gap-2 border border-gray-200 dark:border-gray-600'>
                                     <Ionicons
-                                        name="heart"
+                                        name='heart'
                                         size={20}
-                                        color="#F87171"
+                                        color='#F87171'
                                     />
-                                    <Text className="text-gray-700 dark:text-gray-300 font-bold text-base">
+                                    <Text className='text-gray-700 dark:text-gray-300 font-bold text-base'>
                                         {heartsUsed} used
                                     </Text>
                                 </View>
@@ -377,30 +377,30 @@ export default function GameScreen() {
                             {/* Primary action */}
                             <Pressable
                                 onPress={handleNextLevel}
-                                className="bg-indigo-500 active:bg-indigo-600 w-full rounded-2xl mb-4 border-b-4 border-indigo-700 active:border-b-0 active:translate-y-[4px] py-4"
+                                className='bg-indigo-500 active:bg-indigo-600 w-full rounded-2xl mb-4 border-b-4 border-indigo-700 active:border-b-0 active:translate-y-[4px] py-4'
                             >
-                                <View className="flex-row items-center justify-center gap-2">
-                                    <Text className="text-white font-black text-lg tracking-wide uppercase">
+                                <View className='flex-row items-center justify-center gap-2'>
+                                    <Text className='text-white font-black text-lg tracking-wide uppercase'>
                                         {isCommunity
-                                            ? "Back to Community"
+                                            ? 'Back to Community'
                                             : isPreview
-                                              ? "Back to Editor"
+                                              ? 'Back to Editor'
                                               : isReplay
-                                                ? "Completed Levels"
-                                                : "Next Level"}
+                                                ? 'Completed Levels'
+                                                : 'Next Level'}
                                     </Text>
                                     <Ionicons
                                         name={
                                             isCommunity
-                                                ? "people"
+                                                ? 'people'
                                                 : isPreview
-                                                  ? "create"
+                                                  ? 'create'
                                                   : isReplay
-                                                    ? "list"
-                                                    : "arrow-forward"
+                                                    ? 'list'
+                                                    : 'arrow-forward'
                                         }
                                         size={24}
-                                        color="white"
+                                        color='white'
                                     />
                                 </View>
                             </Pressable>
@@ -410,15 +410,15 @@ export default function GameScreen() {
                                 onPress={() =>
                                     router.replace(`/game/${levelId}`)
                                 }
-                                className="w-full py-4 rounded-2xl bg-gray-100 dark:bg-gray-800 border-b-4 border-gray-300 dark:border-gray-700 active:border-b-0 active:translate-y-[4px] active:bg-gray-200 dark:active:bg-gray-700"
+                                className='w-full py-4 rounded-2xl bg-gray-100 dark:bg-gray-800 border-b-4 border-gray-300 dark:border-gray-700 active:border-b-0 active:translate-y-[4px] active:bg-gray-200 dark:active:bg-gray-700'
                             >
-                                <View className="flex-row items-center justify-center gap-2">
+                                <View className='flex-row items-center justify-center gap-2'>
                                     <Ionicons
-                                        name="refresh"
+                                        name='refresh'
                                         size={22}
-                                        color="#6B7280"
+                                        color='#6B7280'
                                     />
-                                    <Text className="text-gray-700 dark:text-gray-300 font-bold text-base tracking-wide uppercase">
+                                    <Text className='text-gray-700 dark:text-gray-300 font-bold text-base tracking-wide uppercase'>
                                         Replay
                                     </Text>
                                 </View>
@@ -434,56 +434,61 @@ export default function GameScreen() {
 
             {isGameOver && (
                 <View
-                    className="absolute inset-0 items-center justify-center"
-                    style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
+                    className='absolute inset-0 items-center justify-center'
+                    style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
                 >
                     <Animated.View
-                        className="mx-6 w-[85%] max-w-sm bg-white dark:bg-gray-800 rounded-[32px] p-8 items-center shadow-black/30 shadow-[0px_20px_40px_rgba(0,0,0,0.3)] border border-gray-100 dark:border-gray-700 overflow-hidden"
+                        className='mx-6 w-[85%] max-w-sm bg-white dark:bg-gray-800 rounded-[32px] p-8 items-center shadow-black/30 shadow-[0px_20px_40px_rgba(0,0,0,0.3)] border border-gray-100 dark:border-gray-700 overflow-hidden'
                         style={cardStyle}
                     >
                         {/* Decorative background circles */}
-                        <View className="absolute -top-20 -right-20 w-40 h-40 bg-red-50 dark:bg-red-900/20 rounded-full" />
-                        <View className="absolute -bottom-20 -left-20 w-40 h-40 bg-red-50 dark:bg-red-900/20 rounded-full" />
+                        <View className='absolute -top-20 -right-20 w-40 h-40 bg-red-50 dark:bg-red-900/20 rounded-full' />
+                        <View className='absolute -bottom-20 -left-20 w-40 h-40 bg-red-50 dark:bg-red-900/20 rounded-full' />
 
-                        <View className="bg-red-100 dark:bg-red-900/40 p-5 rounded-full mb-6 mt-2">
+                        <View className='bg-red-100 dark:bg-red-900/40 p-5 rounded-full mb-6 mt-2'>
                             <Ionicons
-                                name="heart-half"
+                                name='heart-half'
                                 size={56}
-                                color="#EF4444"
+                                color='#EF4444'
                                 style={{
-                                    textShadowColor: "rgba(239, 68, 68, 0.4)",
+                                    textShadowColor: 'rgba(239, 68, 68, 0.4)',
                                     textShadowOffset: { width: 0, height: 4 },
                                     textShadowRadius: 12,
                                 }}
                             />
                         </View>
 
-                        <Text className="text-4xl font-black text-gray-900 dark:text-gray-100 mb-2 tracking-tight">
+                        <Text className='text-4xl font-black text-gray-900 dark:text-gray-100 mb-2 tracking-tight'>
                             Game Over
                         </Text>
-                        <Text className="text-gray-500 dark:text-gray-400 text-base text-center mb-8 px-4 leading-6">
-                            You ran out of hearts!{"\n"}Don't give up, try
+                        <Text className='text-gray-500 dark:text-gray-400 text-base text-center mb-8 px-4 leading-6'>
+                            You ran out of hearts!{'\n'}Don&apos;t give up, try
                             again.
                         </Text>
 
                         {isWatchingAd ? (
-                            <View className="mb-4 py-4 w-full items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-2xl">
-                                <ActivityIndicator size="large" color="#6366f1" />
-                                <Text className="mt-2 text-indigo-500 font-bold">Loading ad...</Text>
+                            <View className='mb-4 py-4 w-full items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-2xl'>
+                                <ActivityIndicator
+                                    size='large'
+                                    color='#6366f1'
+                                />
+                                <Text className='mt-2 text-indigo-500 font-bold'>
+                                    Loading ad...
+                                </Text>
                             </View>
                         ) : (
                             rewardedLoaded && (
                                 <Pressable
                                     onPress={handleRevive}
-                                    className="bg-indigo-500 active:bg-indigo-600 w-full rounded-2xl mb-4 border-b-4 border-indigo-700 active:border-b-0 active:translate-y-[4px] py-4"
+                                    className='bg-indigo-500 active:bg-indigo-600 w-full rounded-2xl mb-4 border-b-4 border-indigo-700 active:border-b-0 active:translate-y-[4px] py-4'
                                 >
-                                    <View className="flex-row items-center justify-center gap-2">
+                                    <View className='flex-row items-center justify-center gap-2'>
                                         <Ionicons
-                                            name="videocam"
+                                            name='videocam'
                                             size={24}
-                                            color="white"
+                                            color='white'
                                         />
-                                        <Text className="text-white font-black text-lg tracking-wide uppercase">
+                                        <Text className='text-white font-black text-lg tracking-wide uppercase'>
                                             Watch Ad to Revive
                                         </Text>
                                     </View>
@@ -493,15 +498,15 @@ export default function GameScreen() {
 
                         <Pressable
                             onPress={handleRetry}
-                            className="bg-red-500 active:bg-red-600 w-full rounded-2xl mb-4 border-b-4 border-red-700 active:border-b-0 active:translate-y-[4px] py-4"
+                            className='bg-red-500 active:bg-red-600 w-full rounded-2xl mb-4 border-b-4 border-red-700 active:border-b-0 active:translate-y-[4px] py-4'
                         >
-                            <View className="flex-row items-center justify-center gap-2">
+                            <View className='flex-row items-center justify-center gap-2'>
                                 <Ionicons
-                                    name="refresh-circle"
+                                    name='refresh-circle'
                                     size={26}
-                                    color="white"
+                                    color='white'
                                 />
-                                <Text className="text-white font-black text-lg tracking-wide uppercase">
+                                <Text className='text-white font-black text-lg tracking-wide uppercase'>
                                     Try Again
                                 </Text>
                             </View>
@@ -513,28 +518,28 @@ export default function GameScreen() {
                                     ? router.back()
                                     : isPreview
                                       ? router.back()
-                                      : router.replace("/")
+                                      : router.replace('/')
                             }
-                            className="w-full py-4 rounded-2xl bg-gray-100 dark:bg-gray-800 border-b-4 border-gray-300 dark:border-gray-700 active:border-b-0 active:translate-y-[4px] active:bg-gray-200 dark:active:bg-gray-700"
+                            className='w-full py-4 rounded-2xl bg-gray-100 dark:bg-gray-800 border-b-4 border-gray-300 dark:border-gray-700 active:border-b-0 active:translate-y-[4px] active:bg-gray-200 dark:active:bg-gray-700'
                         >
-                            <View className="flex-row items-center justify-center gap-2">
+                            <View className='flex-row items-center justify-center gap-2'>
                                 <Ionicons
                                     name={
                                         isCommunity
-                                            ? "people"
+                                            ? 'people'
                                             : isPreview
-                                              ? "create"
-                                              : "home"
+                                              ? 'create'
+                                              : 'home'
                                     }
                                     size={20}
-                                    color="#6B7280"
+                                    color='#6B7280'
                                 />
-                                <Text className="text-gray-700 dark:text-gray-300 font-bold text-base tracking-wide uppercase">
+                                <Text className='text-gray-700 dark:text-gray-300 font-bold text-base tracking-wide uppercase'>
                                     {isCommunity
-                                        ? "Back to Community"
+                                        ? 'Back to Community'
                                         : isPreview
-                                          ? "Back to Editor"
-                                          : "Back to Home"}
+                                          ? 'Back to Editor'
+                                          : 'Back to Home'}
                                 </Text>
                             </View>
                         </Pressable>
@@ -542,7 +547,7 @@ export default function GameScreen() {
                 </View>
             )}
 
-            <View className="w-full">
+            <View className='w-full'>
                 <BannerAdWidget />
             </View>
 

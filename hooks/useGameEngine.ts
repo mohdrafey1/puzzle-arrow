@@ -58,6 +58,20 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const { playSfx } = useSfx();
 
+    // Audio decode/play can add a few ms of jitter on the JS thread; defer
+    // one frame so the visible animation kick-off isn't blocked.
+    const playSfxDeferred = useCallback(
+        (name: Parameters<typeof playSfx>[0]) => {
+            requestAnimationFrame(() => playSfx(name));
+        },
+        [playSfx],
+    );
+
+    // Coalesced removal queue: rapid taps schedule a single setBoard flush
+    // instead of one per tap. Massively reduces re-renders on dense boards.
+    const pendingRemovals = useRef<Set<string>>(new Set());
+    const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     // ── Keep stable refs so handleTap never needs state in deps ──
     const boardRef = useRef<TileData[]>(board);
 
@@ -75,6 +89,13 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
         setHearts(3);
         setElapsedSeconds(0);
 
+        // Drop any in-flight removals so they don't leak into the next level
+        pendingRemovals.current.clear();
+        if (flushTimerRef.current) {
+            clearTimeout(flushTimerRef.current);
+            flushTimerRef.current = null;
+        }
+
         const data = getLevelData(levelId);
         setLevelData(data);
         levelDataRef.current = data;
@@ -84,6 +105,13 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
         boardRef.current = newBoard;
         setBoard(newBoard);
     }, [levelId]);
+
+    // Cancel any pending flush on unmount
+    useEffect(() => {
+        return () => {
+            if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+        };
+    }, []);
 
     // Load haptics preference
     useEffect(() => {
@@ -131,6 +159,12 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
         setIsResetting(true);
         setIsComplete(false);
         setIsGameOver(false);
+        // Drop any in-flight removals from the failed attempt
+        pendingRemovals.current.clear();
+        if (flushTimerRef.current) {
+            clearTimeout(flushTimerRef.current);
+            flushTimerRef.current = null;
+        }
         setTimeout(() => {
             setAttemptCount((prev) => {
                 const nextAttempt = prev + 1;
@@ -148,29 +182,42 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
         }, 500);
     }, [levelId]);
 
-    const removeTile = useCallback(
+    const flushRemovals = useCallback(() => {
+        flushTimerRef.current = null;
+        const toRemove = pendingRemovals.current;
+        if (toRemove.size === 0) return;
+        const ids = new Set(toRemove);
+        toRemove.clear();
+        setBoard((prev) => {
+            const next = prev.map((t) =>
+                ids.has(t.id) ? { ...t, removed: true } : t,
+            );
+            if (next.every((t) => t.removed)) {
+                haptic("success");
+                playSfxDeferred("gamewin");
+                setIsComplete(true);
+                setTimeout(onLevelComplete, 500);
+            }
+            return next;
+        });
+    }, [onLevelComplete, haptic, playSfxDeferred]);
+
+    const queueRemoval = useCallback(
         (id: string) => {
-            setBoard((prev) => {
-                const next = prev.map((t) =>
-                    t.id === id ? { ...t, removed: true } : t,
-                );
-                if (next.every((t) => t.removed)) {
-                    haptic("success");
-                    playSfx("gamewin");
-                    setIsComplete(true);
-                    setTimeout(onLevelComplete, 500);
-                }
-                return next;
-            });
+            pendingRemovals.current.add(id);
+            if (flushTimerRef.current == null) {
+                // Match exit animation length (see ArrowTile onExit ~320ms).
+                flushTimerRef.current = setTimeout(flushRemovals, 350);
+            }
         },
-        [onLevelComplete, haptic],
+        [flushRemovals],
     );
 
     // ── Stable handleTap: reads board/levelData from refs, never recreates on board change ──
-    const removeTileRef = useRef(removeTile);
+    const queueRemovalRef = useRef(queueRemoval);
     useEffect(() => {
-        removeTileRef.current = removeTile;
-    }, [removeTile]);
+        queueRemovalRef.current = queueRemoval;
+    }, [queueRemoval]);
     const heartsRef = useRef(hearts);
     useEffect(() => {
         heartsRef.current = hearts;
@@ -207,15 +254,13 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
                 )
             ) {
                 haptic("light");
-                playSfx("arrowout");
+                playSfxDeferred("arrowout");
                 onExitAnimation();
                 boardRef.current = boardRef.current.map((t) =>
                     t.id === tile.id ? { ...t, removed: true } : t,
                 );
                 animationLock.current = false;
-                setTimeout(() => {
-                    removeTileRef.current(tile.id);
-                }, 600);
+                queueRemovalRef.current(tile.id);
             } else {
                 haptic("error");
                 setErrorTileId(tile.id);
@@ -223,20 +268,20 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
                     const next = prev - 1;
                     if (next <= 0) {
                         setTimeout(() => {
-                            playSfx("gameover");
+                            playSfxDeferred("gameover");
                             setIsGameOver(true);
                             animationLock.current = false;
                         }, 500);
                     } else {
                         setTimeout(() => {
                             animationLock.current = false;
-                        }, 400);
+                        }, 240);
                     }
                     return next;
                 });
             }
         },
-        [haptic, playSfx], // ← only haptic + playSfx in deps — board/hearts read from refs
+        [haptic, playSfxDeferred], // board/hearts read from refs; queueRemoval via ref
     );
 
     const reviveGame = useCallback(() => {

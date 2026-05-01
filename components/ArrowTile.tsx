@@ -1,4 +1,3 @@
-import { useColorScheme } from "nativewind";
 import React, { forwardRef, useEffect, useImperativeHandle } from "react";
 import Animated, {
     Easing,
@@ -21,7 +20,7 @@ interface ArrowTileProps {
     boardSize: number;
     isResetting: boolean;
     hasError: boolean;
-    arrowColorOverride?: string;
+    tileColor: string;
 }
 
 export interface ArrowTileRef {
@@ -31,20 +30,9 @@ export interface ArrowTileRef {
 export const ArrowTile = React.memo(
     forwardRef<ArrowTileRef, ArrowTileProps>(
         (
-            {
-                tile,
-                cellSize,
-                boardSize,
-                isResetting,
-                hasError,
-                arrowColorOverride,
-            },
+            { tile, cellSize, boardSize, isResetting, hasError, tileColor },
             ref,
         ) => {
-            const { colorScheme } = useColorScheme();
-            const tileColor =
-                arrowColorOverride ||
-                (colorScheme === "dark" ? "#F9FAFB" : "#111827");
             const actualColor = hasError ? "#EF4444" : tileColor;
 
             // Build Line Coordinates inside cell centers
@@ -98,16 +86,16 @@ export const ArrowTile = React.memo(
 
             useEffect(() => {
                 // Entrance: simple fade in with stagger
-                const order = Math.random() * 300;
+                const order = Math.random() * 220;
                 opacity.value = withDelay(
                     order,
-                    withTiming(1, { duration: 350 }),
+                    withTiming(1, { duration: 260 }),
                 );
             }, []);
 
             useEffect(() => {
                 if (isResetting) {
-                    opacity.value = withTiming(0, { duration: 300 });
+                    opacity.value = withTiming(0, { duration: 220 });
                     progress.value = 0;
                 }
             }, [isResetting]);
@@ -118,11 +106,11 @@ export const ArrowTile = React.memo(
                     const bumpAmount = cellSize * 0.2;
                     progress.value = withSequence(
                         withTiming(bumpAmount, {
-                            duration: 80,
+                            duration: 70,
                             easing: Easing.out(Easing.ease),
                         }),
-                        withTiming(-bumpAmount * 0.5, { duration: 80 }),
-                        withTiming(0, { duration: 80 }),
+                        withTiming(-bumpAmount * 0.5, { duration: 70 }),
+                        withTiming(0, { duration: 70 }),
                     );
                 }
             }, [hasError]);
@@ -130,12 +118,12 @@ export const ArrowTile = React.memo(
             useImperativeHandle(ref, () => ({
                 onExit: () => {
                     progress.value = withTiming(escapeDist, {
-                        duration: 600,
+                        duration: 320,
                         easing: Easing.in(Easing.ease),
                     });
                     opacity.value = withDelay(
-                        400,
-                        withTiming(0, { duration: 200 }),
+                        200,
+                        withTiming(0, { duration: 120 }),
                     );
                 },
             }));
@@ -161,17 +149,22 @@ export const ArrowTile = React.memo(
                 };
             });
 
+            const isSingle = tile.path.length === 1;
+            const tailProps = useAnimatedProps(() => ({
+                cx: M.x + (isSingle ? progress.value * dirX : 0),
+                cy: M.y + (isSingle ? progress.value * dirY : 0),
+                opacity: progress.value > 0 && !isSingle ? 0 : 1,
+            }));
+
+            const gProps = useAnimatedProps(() => ({
+                opacity: opacity.value,
+            }));
+
             const arrowAngle = { up: -90, right: 0, down: 90, left: 180 }[
                 tile.direction
             ];
             const arrL = cellSize * 0.25;
             const arrW = cellSize * 0.15;
-
-            // Only animate opacity on the group — SVG transforms from canvas origin,
-            // causing collapse glitch when scale is animated.
-            const gProps = useAnimatedProps(() => ({
-                opacity: opacity.value,
-            }));
 
             return (
                 <AnimatedG animatedProps={gProps}>
@@ -191,22 +184,7 @@ export const ArrowTile = React.memo(
                         cy={M.y}
                         r={cellSize * 0.04}
                         fill={actualColor}
-                        animatedProps={useAnimatedProps(() => ({
-                            cx:
-                                M.x +
-                                (tile.path.length === 1
-                                    ? progress.value * dirX
-                                    : 0),
-                            cy:
-                                M.y +
-                                (tile.path.length === 1
-                                    ? progress.value * dirY
-                                    : 0),
-                            opacity:
-                                progress.value > 0 && tile.path.length > 1
-                                    ? 0
-                                    : 1, // Hide once pulled
-                        }))}
+                        animatedProps={tailProps}
                     />
                     <AnimatedG animatedProps={headProps}>
                         <G rotation={arrowAngle}>

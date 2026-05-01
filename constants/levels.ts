@@ -1,18 +1,18 @@
-import { Direction, Point, TileData } from "../utils/movement";
+import { Direction, Point, TileData } from '../utils/movement';
 import {
     countActiveCells,
     generateShapeMask,
     getShapeForLevel,
-} from "./shapes";
+} from './shapes';
 
 export interface LevelData {
     id: number;
     size: number;
-    tiles: Omit<TileData, "id">[];
+    tiles: Omit<TileData, 'id'>[];
     shape: boolean[][]; // which cells are active
 }
 
-import seedrandom from "seedrandom";
+import seedrandom from 'seedrandom';
 
 // ── Backward Level Generation ──────────────────────────────────────────
 // We generate the board BACKWARDS from a solved state.
@@ -29,7 +29,7 @@ function tryGenerateBackward(
     activeCellCount: number,
     minLen: number,
     maxLen: number,
-): { tiles: Omit<TileData, "id">[]; filled: number } {
+): { tiles: Omit<TileData, 'id'>[]; filled: number } {
     const occupied = Array(size)
         .fill(0)
         .map(() => Array(size).fill(false));
@@ -40,13 +40,13 @@ function tryGenerateBackward(
         }
     }
 
-    const DIRS: Direction[] = ["up", "down", "left", "right"];
+    const DIRS: Direction[] = ['up', 'down', 'left', 'right'];
     const tiles: { path: Point[]; direction: Direction }[] = [];
 
     let attemptsWithoutPlacement = 0;
     // Increase max attempts significantly so the generator tries much harder
     // to fill in empty cells without giving up too early on large boards.
-    const maxAttempts = 300 + activeCellCount * 3;
+    const maxAttempts = 500 + activeCellCount * 5;
 
     while (attemptsWithoutPlacement < maxAttempts) {
         const emptyCells: Point[] = [];
@@ -81,8 +81,8 @@ function tryGenerateBackward(
 
         // Valid exit ray: ray must reach shape boundary WITHOUT hitting any occupied cell.
         const validDirs = DIRS.filter((dir) => {
-            const dirX = dir === "right" ? 1 : dir === "left" ? -1 : 0;
-            const dirY = dir === "down" ? 1 : dir === "up" ? -1 : 0;
+            const dirX = dir === 'right' ? 1 : dir === 'left' ? -1 : 0;
+            const dirY = dir === 'down' ? 1 : dir === 'up' ? -1 : 0;
             let cx = head.x + dirX;
             let cy = head.y + dirY;
             while (
@@ -108,8 +108,8 @@ function tryGenerateBackward(
 
         // Temporarily reserve the exit ray so the snake's body doesn't cross its own escape path
         const rayCells: Point[] = [];
-        const dirX = dir === "right" ? 1 : dir === "left" ? -1 : 0;
-        const dirY = dir === "down" ? 1 : dir === "up" ? -1 : 0;
+        const dirX = dir === 'right' ? 1 : dir === 'left' ? -1 : 0;
+        const dirY = dir === 'down' ? 1 : dir === 'up' ? -1 : 0;
         let rx = head.x + dirX;
         let ry = head.y + dirY;
         while (rx >= 0 && rx < size && ry >= 0 && ry < size) {
@@ -133,24 +133,29 @@ function tryGenerateBackward(
         const actualMaxLen = isHeadOnEdge
             ? Math.min(size * 2, maxLen * 2)
             : maxLen;
+        // Skew length distribution toward `actualMaxLen` so the board fills
+        // with longer, interlocking snakes instead of trivial 2- and 3-cell
+        // pieces. `1 - (1-t)^2` is the inverse of a quadratic ease, biased high.
+        const t = rng();
+        const skewed = 1 - (1 - t) * (1 - t);
         const targetLen =
-            Math.floor(rng() * (actualMaxLen - minLen + 1)) + minLen;
+            Math.floor(skewed * (actualMaxLen - minLen + 1)) + minLen;
         const path: Point[] = [head];
         let curr = head;
 
         const opposite: Record<Direction, Direction> = {
-            up: "down",
-            down: "up",
-            left: "right",
-            right: "left",
+            up: 'down',
+            down: 'up',
+            left: 'right',
+            right: 'left',
         };
 
         for (let i = 1; i < targetLen; i++) {
             let possible = [
-                { x: curr.x, y: curr.y - 1, d: "up" as Direction },
-                { x: curr.x, y: curr.y + 1, d: "down" as Direction },
-                { x: curr.x - 1, y: curr.y, d: "left" as Direction },
-                { x: curr.x + 1, y: curr.y, d: "right" as Direction },
+                { x: curr.x, y: curr.y - 1, d: 'up' as Direction },
+                { x: curr.x, y: curr.y + 1, d: 'down' as Direction },
+                { x: curr.x - 1, y: curr.y, d: 'left' as Direction },
+                { x: curr.x + 1, y: curr.y, d: 'right' as Direction },
             ];
 
             if (i === 1) {
@@ -230,20 +235,19 @@ export function generateLevel(id: number): LevelData {
     const shape = generateShapeMask(shapeName, size);
     const activeCellCount = countActiveCells(shape);
 
-    // Mixture of all lengths: allows short (2) up to some long arrows.
-    const minLen = 2;
-    // To get 80+ arrows in a smaller grid, average length must be smaller.
-    // For size 16 (level 101), maxLen = 6 -> avg length 4 -> ~64 arrows.
-    // For size 25 (max level), maxLen = 10 -> avg length 6 -> ~100 arrows.
-    const maxLen = Math.min(Math.floor(size / 3) + 3, 10);
+    // Force longer interlocking snakes — short arrows are trivial to solve.
+    // size 6→minLen 2, size 12→3, size 18→4, size 25→6
+    const minLen = Math.max(2, Math.floor(size / 5) + 1);
+    // size 6→maxLen 7, size 12→10, size 18→13, size 25→16
+    const maxLen = Math.min(Math.floor(size / 2) + 4, 18);
 
-    let bestResult: Omit<TileData, "id">[] = [];
+    let bestResult: Omit<TileData, 'id'>[] = [];
     let bestFill = 0;
 
-    // Backward generation is instant, so we can try generating 30 times
+    // Backward generation is instant, so we can try generating many times
     // and just pick the instance that packed the board the tightest!
-    for (let seedOffset = 0; seedOffset < 30; seedOffset++) {
-        const rng = seedrandom(`${id}_backward_v8_${seedOffset}`);
+    for (let seedOffset = 0; seedOffset < 60; seedOffset++) {
+        const rng = seedrandom(`${id}_backward_v9_${seedOffset}`);
         const result = tryGenerateBackward(
             rng,
             size,
@@ -258,8 +262,8 @@ export function generateLevel(id: number): LevelData {
             bestResult = result.tiles;
         }
 
-        // If we filled 90% of the board with long snakes, that's incredibly good, just ship it!
-        if (bestFill >= 0.9) break;
+        // 92% fill with long snakes is excellent — ship it.
+        if (bestFill >= 0.92) break;
     }
 
     // Fallback: simpler generation for extreme edge cases like Level 1 where size is 6 and minLen is 2
@@ -277,9 +281,9 @@ function generateSimpleFallback(
     rng: () => number,
     size: number,
     shape: boolean[][],
-): Omit<TileData, "id">[] {
-    const tiles: Omit<TileData, "id">[] = [];
-    const DIRS: Direction[] = ["up", "down", "left", "right"];
+): Omit<TileData, 'id'>[] {
+    const tiles: Omit<TileData, 'id'>[] = [];
+    const DIRS: Direction[] = ['up', 'down', 'left', 'right'];
     for (let y = 0; y < size; y++) {
         for (let x = 0; x < size; x++) {
             if (shape[y][x]) {
