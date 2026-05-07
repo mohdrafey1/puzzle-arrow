@@ -1,12 +1,12 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import mobileAds, {
+    AdEventType,
     AppOpenAd,
     InterstitialAd,
     RewardedAd,
-    TestIds,
-    AdEventType,
     RewardedAdEventType,
+    TestIds,
 } from "react-native-google-mobile-ads";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Automatically use test ads in dev, real ads in production
 const USE_TEST_ADS = __DEV__;
@@ -116,7 +116,7 @@ export async function preloadInterstitial(): Promise<void> {
             {
                 requestNonPersonalizedAdsOnly: true,
                 // Exclude sensitive ad categories for family-friendly content
-                keywords: ['puzzle', 'game', 'family', 'kids'],
+                keywords: ['puzzle', 'game', 'strategy', 'casual', 'brain'],
                 contentUrl: 'https://play.google.com/store/apps/details?id=com.mohdrafey1.puzzlearrow',
             }
         );
@@ -185,7 +185,7 @@ export async function preloadRewarded(): Promise<void> {
         rewardedAd = RewardedAd.createForAdRequest(AdUnitIds.rewarded, {
             requestNonPersonalizedAdsOnly: true,
             // Exclude sensitive ad categories for family-friendly content
-            keywords: ['puzzle', 'game', 'family', 'kids'],
+            keywords: ['puzzle', 'game', 'strategy', 'casual', 'brain'],
             contentUrl: 'https://play.google.com/store/apps/details?id=com.mohdrafey1.puzzlearrow',
         });
 
@@ -268,7 +268,7 @@ export async function preloadAppOpen(): Promise<void> {
         appOpenAd = AppOpenAd.createForAdRequest(AdUnitIds.appOpen, {
             requestNonPersonalizedAdsOnly: true,
             // Exclude sensitive ad categories for family-friendly content
-            keywords: ['puzzle', 'game', 'family', 'kids'],
+            keywords: ['puzzle', 'game', 'strategy', 'casual', 'brain'],
             contentUrl: 'https://play.google.com/store/apps/details?id=com.mohdrafey1.puzzlearrow',
         });
 

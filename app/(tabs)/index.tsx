@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { Pressable, Share, Text, View } from "react-native";
+import { Linking, Pressable, Share, Text, View } from "react-native";
 import { BannerAdWidget } from "../../components/BannerAdWidget";
 import { getUnlockedLevel } from "../../utils/storage";
 
@@ -20,6 +20,12 @@ export default function Home() {
             };
         }, []),
     );
+
+    const rateApp = () => {
+        Linking.openURL(
+            "https://play.google.com/store/apps/details?id=com.mohdrafey1.puzzlearrow&showAllReviews=true"
+        );
+    };
 
     const shareApp = async () => {
         try {
@@ -91,6 +97,16 @@ export default function Home() {
                 <Ionicons name="share-social" size={20} color="white" />
                 <Text className="text-white text-lg font-bold">
                     Share our App with Friends
+                </Text>
+            </Pressable>
+
+            <Pressable
+                className="mt-3 bg-yellow-400 active:bg-yellow-500 w-full max-w-sm rounded-2xl py-3 items-center shadow-md flex-row justify-center gap-2"
+                onPress={rateApp}
+            >
+                <Ionicons name="star" size={20} color="white" />
+                <Text className="text-white text-lg font-bold">
+                    Rate us 5 stars on Play Store
                 </Text>
             </Pressable>
 

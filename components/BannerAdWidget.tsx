@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { View } from "react-native";
 import {
     BannerAd,
     BannerAdSize,
@@ -10,56 +10,77 @@ interface BannerAdWidgetProps {
     size?: BannerAdSize;
 }
 
+const RESERVED_HEIGHTS: Record<string, number> = {
+    [BannerAdSize.BANNER]: 50,
+    [BannerAdSize.LARGE_BANNER]: 100,
+    [BannerAdSize.MEDIUM_RECTANGLE]: 250,
+    [BannerAdSize.FULL_BANNER]: 60,
+    [BannerAdSize.LEADERBOARD]: 90,
+    [BannerAdSize.ANCHORED_ADAPTIVE_BANNER]: 60,
+};
+
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 30_000;
+
 /**
  * Reusable banner ad component.
- * Renders an adaptive banner by default.
- * Gracefully hides itself if the ad fails to load.
+ * Always reserves a fixed-height slot to prevent layout shift, even when
+ * the ad fails to load or is still initializing. Retries up to 3 times on
+ * failure, 30s apart, before giving up for the screen lifetime.
  */
 export function BannerAdWidget({
     size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER,
 }: BannerAdWidgetProps) {
     const [isInit, setIsInit] = useState(false);
+    const [retryKey, setRetryKey] = useState(0);
+    const [retryCount, setRetryCount] = useState(0);
     const [hasError, setHasError] = useState<string | null>(null);
+    const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const reservedHeight = RESERVED_HEIGHTS[size] ?? 60;
 
     useEffect(() => {
         initializeAds().then(() => setIsInit(true));
+        return () => {
+            if (retryTimer.current) clearTimeout(retryTimer.current);
+        };
     }, []);
 
-    if (!isInit) {
-        return __DEV__ ? (
-            <View className="w-full items-center py-4 bg-gray-200 dark:bg-gray-800 rounded-lg">
-                <Text className="text-gray-500">Initializing AdMob...</Text>
-            </View>
-        ) : null;
-    }
+    const slotStyle = {
+        width: "100%" as const,
+        height: reservedHeight,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+    };
 
-    if (hasError) {
-        return __DEV__ ? (
-            <View className="w-full items-center py-4 bg-red-100 dark:bg-red-900 rounded-lg border border-red-300">
-                <Text className="text-red-600 dark:text-red-400 text-xs text-center px-4">
-                    Ad Failed: {hasError}
-                </Text>
-            </View>
-        ) : null;
+    if (!isInit || hasError) {
+        return <View style={slotStyle} />;
     }
 
     return (
-        <View className="w-full items-center py-2">
+        <View style={slotStyle}>
             <BannerAd
+                key={retryKey}
                 unitId={AdUnitIds.banner}
                 size={size}
                 requestOptions={{
                     requestNonPersonalizedAdsOnly: true,
-                    // Exclude sensitive ad categories for family-friendly content
-                    keywords: ['puzzle', 'game', 'family', 'kids'],
-                    contentUrl: 'https://play.google.com/store/apps/details?id=com.mohdrafey1.puzzlearrow',
+                    keywords: ["puzzle", "game", "strategy", "casual", "brain"],
+                    contentUrl:
+                        "https://play.google.com/store/apps/details?id=com.mohdrafey1.puzzlearrow",
                 }}
                 onAdLoaded={() => {
-                    console.log("[BannerAd] Loaded successfully");
+                    setRetryCount(0);
                 }}
                 onAdFailedToLoad={(error) => {
-                    console.error("[BannerAd] Failed to load:", error);
-                    setHasError(error.message);
+                    if (retryCount < MAX_RETRIES) {
+                        retryTimer.current = setTimeout(() => {
+                            setRetryCount((c) => c + 1);
+                            setRetryKey((k) => k + 1);
+                        }, RETRY_DELAY_MS);
+                    } else {
+                        setHasError(error.message);
+                    }
                 }}
             />
         </View>

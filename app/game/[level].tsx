@@ -9,6 +9,7 @@ import Animated, {
     withSpring,
     withTiming,
 } from 'react-native-reanimated';
+import { BannerAdSize } from 'react-native-google-mobile-ads';
 import Toast from 'react-native-toast-message';
 import { BannerAdWidget } from '../../components/BannerAdWidget';
 import { ConfettiOverlay } from '../../components/ConfettiOverlay';
@@ -548,7 +549,7 @@ export default function GameScreen() {
             )}
 
             <View className='w-full'>
-                <BannerAdWidget />
+                <BannerAdWidget size={BannerAdSize.BANNER} />
             </View>
 
             <Toast />
