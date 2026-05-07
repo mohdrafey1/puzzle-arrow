@@ -3,17 +3,22 @@ import path from 'path';
 import { generateLevel } from '../constants/levels';
 
 async function run() {
-    console.log('Generating 1-1000 levels in chunks...');
-    const maxLevels = 1000;
+    const startLevel = 1001;
+    const maxLevels = 1500;
     const chunkSize = 50;
-    const chunksCount = Math.ceil(maxLevels / chunkSize);
 
     const levelsDir = path.resolve(__dirname, '../assets/levels');
     if (!fs.existsSync(levelsDir)) fs.mkdirSync(levelsDir, { recursive: true });
 
-    let indexTsContent = '';
+    const startChunk = Math.floor((startLevel - 1) / chunkSize);
+    const endChunk = Math.ceil(maxLevels / chunkSize) - 1;
 
-    for (let c = 0; c < chunksCount; c++) {
+    console.log(`Generating levels ${startLevel}-${maxLevels} (chunks ${startChunk}-${endChunk})...`);
+
+    let newImports = '';
+    let newRanges = '';
+
+    for (let c = startChunk; c <= endChunk; c++) {
         const chunkLevels = [];
         const start = c * chunkSize + 1;
         const end = Math.min((c + 1) * chunkSize, maxLevels);
@@ -28,21 +33,18 @@ async function run() {
         fs.writeFileSync(chunkPath, JSON.stringify(chunkLevels, null, 2));
         console.log(`Wrote chunk-${c}.json (Levels ${start}-${end})`);
 
-        indexTsContent += `import chunk${c} from "./chunk-${c}.json";\n`;
+        newImports += `import chunk${c} from "./chunk-${c}.json";\n`;
+        newRanges += `    if (id >= ${start} && id <= ${end}) return (chunk${c} as any[])[id - ${start}];\n`;
     }
 
-    indexTsContent += `\nexport function getStaticLevel(id: number): any | null {\n`;
-    for (let c = 0; c < chunksCount; c++) {
-        const start = c * chunkSize + 1;
-        const end = Math.min((c + 1) * chunkSize, maxLevels);
-        indexTsContent += `    if (id >= ${start} && id <= ${end}) return (chunk${c} as any[])[id - ${start}];\n`;
-    }
-    indexTsContent += `    return null;\n}\n`;
+    // Patch index.ts: append new imports at top and new ranges before `return null`
+    const indexPath = path.join(levelsDir, 'index.ts');
+    let indexContent = fs.readFileSync(indexPath, 'utf-8');
+    indexContent = newImports + indexContent;
+    indexContent = indexContent.replace('    return null;\n', newRanges + '    return null;\n');
+    fs.writeFileSync(indexPath, indexContent);
 
-    fs.writeFileSync(path.join(levelsDir, 'index.ts'), indexTsContent);
-    console.log(
-        `\nSuccess! Wrote ${chunksCount} chunks and index.ts to assets/levels/`,
-    );
+    console.log(`\nSuccess! Added chunks ${startChunk}-${endChunk} and patched index.ts`);
 }
 
 run().catch(console.error);
