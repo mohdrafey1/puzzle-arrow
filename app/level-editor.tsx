@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useColorScheme } from "nativewind";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
@@ -17,6 +18,7 @@ import Animated, {
     useAnimatedStyle,
     useSharedValue,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, G, Line, Polygon, Rect } from "react-native-svg";
 import Toast from "react-native-toast-message";
 import { checkNewAchievements } from "../utils/achievements";
@@ -57,6 +59,19 @@ const AVAILABLE_TAGS = ["Logic", "Maze", "Hard", "Speed", "Easy", "Creative"];
 
 export default function LevelEditor() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
+    const { colorScheme } = useColorScheme();
+    const isDark = colorScheme === "dark";
+    // Theme-aware board colors so the editor grid matches the app in dark mode.
+    const cellColors = {
+        emptyFill: isDark ? "#1F2937" : "#F9FAFB",
+        emptyStroke: isDark ? "#374151" : "#E5E7EB",
+        occupiedFill: isDark ? "#1E3A5F" : "#DBEAFE",
+        occupiedStroke: isDark ? "#3B82F6" : "#93C5FD",
+        pathFill: isDark ? "#4D3B10" : "#FEF3C7",
+        pathStroke: "#F59E0B",
+        dot: isDark ? "#4B5563" : "#D1D5DB",
+    };
     const [gridCols, setGridCols] = useState(6);
     const [gridRows, setGridRows] = useState(6);
     const [isCustomMode, setIsCustomMode] = useState(false);
@@ -139,18 +154,25 @@ export default function LevelEditor() {
     const panY = useSharedValue(0);
     const savedPanY = useSharedValue(0);
 
-    // Reset zoom when grid changes
-    const prevGridKey = useRef(`${gridCols}-${gridRows}`);
-    const currentGridKey = `${gridCols}-${gridRows}`;
-    if (currentGridKey !== prevGridKey.current) {
-        prevGridKey.current = currentGridKey;
+    // Reset zoom/pan when the grid dimensions change. Done in an effect rather
+    // than the render body so we never mutate shared values mid-render.
+    React.useEffect(() => {
         zoomScale.value = 1;
         savedZoomScale.value = 1;
         panX.value = 0;
         savedPanX.value = 0;
         panY.value = 0;
         savedPanY.value = 0;
-    }
+    }, [
+        gridCols,
+        gridRows,
+        zoomScale,
+        savedZoomScale,
+        panX,
+        savedPanX,
+        panY,
+        savedPanY,
+    ]);
 
     const pinchGesture = Gesture.Pinch()
         .onUpdate((e) => {
@@ -365,9 +387,24 @@ export default function LevelEditor() {
     }, [currentPath, selectedDirection, arrows, pushHistory]);
 
     const clearAll = useCallback(() => {
-        if (arrows.length > 0) pushHistory([], arrows);
-        setCurrentPath([]);
-        setPlayTestPassed(false);
+        const doClear = () => {
+            if (arrows.length > 0) pushHistory([], arrows);
+            setCurrentPath([]);
+            setPlayTestPassed(false);
+        };
+        // Confirm before wiping a non-trivial draft.
+        if (arrows.length > 0) {
+            Alert.alert(
+                "Clear All Arrows?",
+                "This removes every arrow on the board. You can undo afterwards.",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Clear", style: "destructive", onPress: doClear },
+                ],
+            );
+        } else {
+            doClear();
+        }
     }, [arrows, pushHistory]);
 
     const cancelPath = useCallback(() => {
@@ -472,6 +509,7 @@ export default function LevelEditor() {
                 effectiveSize,
                 tiles,
                 selectedTags,
+                { rows: gridRows, cols: gridCols },
             );
             await saveLevelDraft(null); // Clear draft
             setArrows([]); // Reset UI
@@ -520,7 +558,7 @@ export default function LevelEditor() {
         } finally {
             setSubmitting(false);
         }
-    }, [arrows, effectiveSize, router, selectedTags]);
+    }, [arrows, effectiveSize, router, selectedTags, gridRows, gridCols]);
 
     // Render a placed arrow as SVG
     const renderArrow = (arrow: PlacedArrow, index: number) => {
@@ -639,10 +677,19 @@ export default function LevelEditor() {
     const gridLabel = isSquare ? `${gridCols}` : `${gridCols}×${gridRows}`;
 
     return (
-        <View className="flex-1 bg-gray-50 dark:bg-gray-900 pt-12">
+        <View
+            className="flex-1 bg-gray-50 dark:bg-gray-900"
+            style={{ paddingTop: insets.top + 8 }}
+        >
             {/* Header */}
             <View className="flex-row items-center px-4 mb-4">
-                <Pressable onPress={() => router.back()} className="mr-3 p-2">
+                <Pressable
+                    onPress={() => router.back()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                    hitSlop={8}
+                    className="mr-3 p-2"
+                >
                     <Ionicons name="arrow-back" size={24} color="#3B82F6" />
                 </Pressable>
                 <Text className="text-2xl font-black text-gray-900 dark:text-gray-100 flex-1">
@@ -689,6 +736,7 @@ export default function LevelEditor() {
             <ScrollView
                 className="flex-1"
                 contentContainerStyle={{ paddingBottom: 40 }}
+                keyboardShouldPersistTaps="handled"
             >
                 {/* Grid Size Control */}
                 <View className="px-4 mb-4">
@@ -885,17 +933,17 @@ export default function LevelEditor() {
                                                         rx={cellSize * 0.1}
                                                         fill={
                                                             isInPath
-                                                                ? "#FEF3C7"
+                                                                ? cellColors.pathFill
                                                                 : isOccupied
-                                                                  ? "#DBEAFE"
-                                                                  : "#F9FAFB"
+                                                                  ? cellColors.occupiedFill
+                                                                  : cellColors.emptyFill
                                                         }
                                                         stroke={
                                                             isInPath
-                                                                ? "#F59E0B"
+                                                                ? cellColors.pathStroke
                                                                 : isOccupied
-                                                                  ? "#93C5FD"
-                                                                  : "#E5E7EB"
+                                                                  ? cellColors.occupiedStroke
+                                                                  : cellColors.emptyStroke
                                                         }
                                                         strokeWidth={1}
                                                     />
@@ -927,7 +975,7 @@ export default function LevelEditor() {
                                                             cellSize / 2
                                                         }
                                                         r={cellSize * 0.04}
-                                                        fill="#D1D5DB"
+                                                        fill={cellColors.dot}
                                                         opacity={
                                                             occupiedCells.has(
                                                                 `${x},${y}`,
@@ -980,6 +1028,60 @@ export default function LevelEditor() {
                                 />
                             </Pressable>
                         ))}
+                    </View>
+                </View>
+
+                {/* Tag Selection — placed BEFORE the action buttons so levels
+                    get tagged before they are shared. */}
+                <View className="px-4 mb-4">
+                    <Text className="text-gray-500 dark:text-gray-400 font-bold text-xs uppercase tracking-widest mb-2 text-center">
+                        Add Tags (Optional)
+                    </Text>
+                    <View className="flex-row flex-wrap justify-center gap-2">
+                        {AVAILABLE_TAGS.map((tag) => {
+                            const isSelected = selectedTags.includes(tag);
+                            return (
+                                <Pressable
+                                    key={tag}
+                                    onPress={() => {
+                                        if (isSelected) {
+                                            setSelectedTags(
+                                                selectedTags.filter(
+                                                    (t) => t !== tag,
+                                                ),
+                                            );
+                                        } else {
+                                            if (selectedTags.length >= 3) {
+                                                Alert.alert(
+                                                    "Max 3 Tags",
+                                                    "You can only select up to 3 tags per level.",
+                                                );
+                                                return;
+                                            }
+                                            setSelectedTags([
+                                                ...selectedTags,
+                                                tag,
+                                            ]);
+                                        }
+                                    }}
+                                    className={`px-3 py-1.5 rounded-full border ${
+                                        isSelected
+                                            ? "bg-blue-500 border-blue-600"
+                                            : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                                    }`}
+                                >
+                                    <Text
+                                        className={`text-xs font-bold ${
+                                            isSelected
+                                                ? "text-white"
+                                                : "text-gray-600 dark:text-gray-400"
+                                        }`}
+                                    >
+                                        {tag}
+                                    </Text>
+                                </Pressable>
+                            );
+                        })}
                     </View>
                 </View>
 
@@ -1173,59 +1275,6 @@ export default function LevelEditor() {
                             </View>
                         )}
                     </Pressable>
-                </View>
-
-                {/* Tag Selection */}
-                <View className="px-4 mb-4">
-                    <Text className="text-gray-500 dark:text-gray-400 font-bold text-xs uppercase tracking-widest mb-2 text-center">
-                        Add Tags (Optional)
-                    </Text>
-                    <View className="flex-row flex-wrap justify-center gap-2">
-                        {AVAILABLE_TAGS.map((tag) => {
-                            const isSelected = selectedTags.includes(tag);
-                            return (
-                                <Pressable
-                                    key={tag}
-                                    onPress={() => {
-                                        if (isSelected) {
-                                            setSelectedTags(
-                                                selectedTags.filter(
-                                                    (t) => t !== tag,
-                                                ),
-                                            );
-                                        } else {
-                                            if (selectedTags.length >= 3) {
-                                                Alert.alert(
-                                                    "Max 3 Tags",
-                                                    "You can only select up to 3 tags per level.",
-                                                );
-                                                return;
-                                            }
-                                            setSelectedTags([
-                                                ...selectedTags,
-                                                tag,
-                                            ]);
-                                        }
-                                    }}
-                                    className={`px-3 py-1.5 rounded-full border ${
-                                        isSelected
-                                            ? "bg-blue-500 border-blue-600"
-                                            : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-                                    }`}
-                                >
-                                    <Text
-                                        className={`text-xs font-bold ${
-                                            isSelected
-                                                ? "text-white"
-                                                : "text-gray-600 dark:text-gray-400"
-                                        }`}
-                                    >
-                                        {tag}
-                                    </Text>
-                                </Pressable>
-                            );
-                        })}
-                    </View>
                 </View>
 
                 {/* Info */}

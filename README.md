@@ -54,13 +54,32 @@ You need to have the following installed to run the app:
     npm install
     ```
 
-3. **Start the development server:**
+3. **Configure environment variables:**
+
+    Community levels and the leaderboard use Firebase. Copy the example file
+    and fill in your Firebase project's config:
+
+    ```bash
+    cp .env.example .env
+    # then edit .env with your EXPO_PUBLIC_FIREBASE_* values
+    ```
+
+    Deploy the included database security rules to your project:
+
+    ```bash
+    firebase deploy --only database   # uses database.rules.json
+    ```
+
+    Without a valid `.env`, the app still runs but community/leaderboard
+    features will be unavailable.
+
+4. **Start the development server:**
 
     ```bash
     npx expo start --clear
     ```
 
-4. **Run the App:**
+5. **Run the App:**
     - Press **`a`** to open on an Android Emulator.
     - Or, simply scan the QR code displayed in the terminal using the **Expo Go** app on your physical phone!
 

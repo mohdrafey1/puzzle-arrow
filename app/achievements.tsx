@@ -117,6 +117,9 @@ export default function AchievementsScreen() {
                 <View className="flex-row items-center gap-4">
                     <Pressable
                         onPress={() => router.back()}
+                        accessibilityRole="button"
+                        accessibilityLabel="Go back"
+                        hitSlop={8}
                         className="w-10 h-10 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600"
                     >
                         <Ionicons name="arrow-back" size={24} color="#6B7280" />

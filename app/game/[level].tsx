@@ -10,6 +10,7 @@ import Animated, {
     withTiming,
 } from 'react-native-reanimated';
 import { BannerAdSize } from 'react-native-google-mobile-ads';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { BannerAdWidget } from '../../components/BannerAdWidget';
 import { ConfettiOverlay } from '../../components/ConfettiOverlay';
@@ -42,6 +43,7 @@ import {
     setUnlockedLevel,
     unlockAchievement,
     updateUserStats,
+    UserStats,
 } from '../../utils/storage';
 
 function getStars(hearts: number): number {
@@ -51,11 +53,18 @@ function getStars(hearts: number): number {
 }
 
 export default function GameScreen() {
-    const { level, replay, source } = useLocalSearchParams();
+    const { level, replay, source, cid } = useLocalSearchParams();
     const levelId = parseInt(level as string, 10);
     const isReplay = replay === 'true';
-    const isPreview = levelId === 0;
+    const insets = useSafeAreaInsets();
     const isCommunity = source === 'community';
+    // Editor play-tests use levelId 0 with source="editor". Community levels
+    // ALSO use levelId 0, so preview must be keyed on source, not the id —
+    // otherwise community completions get swallowed by the preview short-circuit.
+    const isPreview = source === 'editor' || (levelId === 0 && !isCommunity);
+    // Stable identity for the specific community level being played, so each
+    // distinct level can be tracked/deduped independently.
+    const communityId = typeof cid === 'string' ? cid : null;
     const router = useRouter();
     const [finalTime, setFinalTime] = useState(0);
     const savedCompletion = useRef(false);
@@ -91,20 +100,20 @@ export default function GameScreen() {
 
         // --- Progression & Achievements Logic ---
         const currentStats = await getUserStats();
-        let statUpdates: any = {};
+        const statUpdates: Partial<UserStats> = {};
 
         if (isCommunity) {
-            // Check if this specific community level is already beaten
+            // Track by the community level's real id so distinct levels count
+            // independently (they all share route levelId 0).
+            const trackingId = communityId ?? levelId.toString();
             const alreadyBeaten =
-                currentStats.completedCommunityLevelIds.includes(
-                    levelId.toString(),
-                );
+                currentStats.completedCommunityLevelIds.includes(trackingId);
             if (!alreadyBeaten) {
                 statUpdates.communityLevelsBeaten =
                     currentStats.communityLevelsBeaten + 1;
                 statUpdates.completedCommunityLevelIds = [
                     ...currentStats.completedCommunityLevelIds,
-                    levelId.toString(),
+                    trackingId,
                 ];
             }
         } else {
@@ -149,7 +158,7 @@ export default function GameScreen() {
                 }
             }
         }
-    }, [levelId, isPreview, isCommunity]);
+    }, [levelId, isPreview, isCommunity, communityId]);
 
     const {
         board,
@@ -230,6 +239,14 @@ export default function GameScreen() {
     const heartsUsed = 3 - hearts;
     const stars = getStars(hearts);
 
+    // Replay path that preserves the play context (community id / editor source)
+    // instead of dropping it and turning a community replay into a bare preview.
+    const replayPath = isCommunity
+        ? `/game/0?source=community${communityId ? `&cid=${encodeURIComponent(communityId)}` : ""}`
+        : isPreview
+          ? "/game/0?source=editor"
+          : `/game/${levelId}`;
+
     // Persist completion stats (once) — skip for preview levels
     useEffect(() => {
         if (isPreview) return;
@@ -247,20 +264,31 @@ export default function GameScreen() {
         }
     }, [isComplete, hearts, levelId, stars, finalTime, isPreview, isCommunity]);
 
-    // Card entrance animation (shared by completion & game over overlays)
+    // Card entrance animation (shared by completion & game over overlays).
+    // Fire once on the transition into an overlay — NOT in render body, which
+    // would restart the spring on every unrelated re-render.
     const cardScale = useSharedValue(0.6);
     const cardOpacity = useSharedValue(0);
-    if (isComplete || isGameOver) {
-        cardScale.value = withSpring(1, { damping: 14, stiffness: 120 });
-        cardOpacity.value = withDelay(100, withTiming(1, { duration: 300 }));
-    }
+    const overlayVisible = isComplete || isGameOver;
+    useEffect(() => {
+        if (overlayVisible) {
+            cardScale.value = withSpring(1, { damping: 14, stiffness: 120 });
+            cardOpacity.value = withDelay(100, withTiming(1, { duration: 300 }));
+        } else {
+            cardScale.value = 0.6;
+            cardOpacity.value = 0;
+        }
+    }, [overlayVisible, cardScale, cardOpacity]);
     const cardStyle = useAnimatedStyle(() => ({
         transform: [{ scale: cardScale.value }],
         opacity: cardOpacity.value,
     }));
 
     return (
-        <View className='flex-1 bg-gray-50 dark:bg-gray-900 p-2 pt-4'>
+        <View
+            className='flex-1 bg-gray-50 dark:bg-gray-900 p-2'
+            style={{ paddingTop: insets.top + 4, paddingBottom: insets.bottom }}
+        >
             <LevelHeader
                 levelId={isPreview ? 0 : levelId}
                 levelLabel={
@@ -409,7 +437,7 @@ export default function GameScreen() {
                             {/* Replay */}
                             <Pressable
                                 onPress={() =>
-                                    router.replace(`/game/${levelId}`)
+                                    router.replace(replayPath as any)
                                 }
                                 className='w-full py-4 rounded-2xl bg-gray-100 dark:bg-gray-800 border-b-4 border-gray-300 dark:border-gray-700 active:border-b-0 active:translate-y-[4px] active:bg-gray-200 dark:active:bg-gray-700'
                             >
@@ -551,8 +579,6 @@ export default function GameScreen() {
             <View className='w-full'>
                 <BannerAdWidget size={BannerAdSize.BANNER} />
             </View>
-
-            <Toast />
         </View>
     );
 }

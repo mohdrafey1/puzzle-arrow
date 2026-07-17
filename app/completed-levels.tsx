@@ -54,6 +54,9 @@ export default function CompletedLevelsScreen() {
             {/* Replay */}
             <Pressable
                 onPress={() => router.push(`/game/${item.levelId}?replay=true`)}
+                accessibilityRole="button"
+                accessibilityLabel={`Replay level ${item.levelId}`}
+                hitSlop={6}
                 className="bg-gray-100 dark:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 w-10 h-10 rounded-xl items-center justify-center"
             >
                 <Ionicons
@@ -71,6 +74,9 @@ export default function CompletedLevelsScreen() {
             <View className="flex-row items-center mb-6">
                 <Pressable
                     onPress={() => router.back()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                    hitSlop={8}
                     className="mr-3 w-10 h-10 rounded-xl bg-white dark:bg-gray-800 items-center justify-center border border-gray-100 dark:border-gray-700"
                 >
                     <Ionicons

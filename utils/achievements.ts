@@ -1,11 +1,14 @@
 import { UserStats } from "./storage";
 
+// Only the numeric progress stats can back an achievement threshold.
+type NumericStat = "levelsCompleted" | "communityLevelsBeaten" | "levelsCreated";
+
 export interface Achievement {
     id: string;
     title: string;
     description: string;
     arrowReward: number;
-    requiredStat: keyof UserStats;
+    requiredStat: NumericStat;
     requiredValue: number;
 }
 
@@ -132,12 +135,6 @@ export function checkNewAchievements(
     return ACHIEVEMENTS.filter((ach) => {
         // Skip if already unlocked
         if (unlockedIds.includes(ach.id)) return false;
-
-        // Use custom array sizing if the required dimension is the ID payload map.
-        if (ach.requiredStat === "completedCommunityLevelIds") {
-            return stats.completedCommunityLevelIds.length >= ach.requiredValue;
-        }
-
         return (stats[ach.requiredStat] as number) >= ach.requiredValue;
     });
 }

@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Direction, Point } from "./movement";
 
 const UNLOCKED_LEVEL_KEY = "@unlocked_level";
 const THEME_KEY = "@app_theme";
@@ -72,8 +73,18 @@ export async function setThemePreference(theme: ThemeType): Promise<void> {
 
 export async function resetProgress(): Promise<void> {
     try {
-        await AsyncStorage.removeItem(UNLOCKED_LEVEL_KEY);
-        await AsyncStorage.removeItem(COMPLETED_LEVELS_KEY);
+        // Clear ALL player progress so "lose all your progress" is truthful.
+        // Intentionally preserves device preferences (theme, haptics, sfx).
+        await AsyncStorage.multiRemove([
+            UNLOCKED_LEVEL_KEY,
+            COMPLETED_LEVELS_KEY,
+            STATS_KEY,
+            UNLOCKED_ACHIEVEMENTS_KEY,
+            ARROWS_BALANCE_KEY,
+            ACTIVE_CUSTOMIZATION_KEY,
+            UNLOCKED_ITEMS_KEY,
+            LEVEL_DRAFT_KEY,
+        ]);
     } catch (e) {
         // skip
     }
@@ -228,12 +239,25 @@ export async function setLeaderboardUsername(username: string): Promise<void> {
     }
 }
 
+export async function clearLeaderboardUsername(): Promise<void> {
+    try {
+        await AsyncStorage.removeItem(LEADERBOARD_USERNAME_KEY);
+    } catch {
+        // skip
+    }
+}
+
 const LEVEL_DRAFT_KEY = "@level_draft";
+
+export interface DraftArrow {
+    path: Point[];
+    direction: Direction;
+}
 
 export interface LevelDraft {
     gridCols: number;
     gridRows: number;
-    arrows: any[];
+    arrows: DraftArrow[];
 }
 
 export async function getLevelDraft(): Promise<LevelDraft | null> {
@@ -398,5 +422,40 @@ export async function unlockItem(itemId: string): Promise<void> {
         }
     } catch {
         // skip
+    }
+}
+
+/**
+ * Atomically debit arrows and unlock an item. Persists the new inventory
+ * BEFORE debiting the balance, and only debits if the item was actually
+ * added, so a mid-operation kill can never charge without granting the item.
+ * Returns the new balance, or null if the purchase could not be completed.
+ */
+export async function purchaseItem(
+    itemId: string,
+    price: number,
+): Promise<number | null> {
+    try {
+        const [balanceRaw, unlocked] = await Promise.all([
+            getArrowsBalance(),
+            getUnlockedItems(),
+        ]);
+
+        if (unlocked.includes(itemId)) return balanceRaw; // already owned
+        if (balanceRaw < price) return null; // insufficient funds
+
+        // Grant the item first…
+        const nextUnlocked = [...unlocked, itemId];
+        await AsyncStorage.setItem(
+            UNLOCKED_ITEMS_KEY,
+            JSON.stringify(nextUnlocked),
+        );
+        // …then debit. Worst case on crash: item granted, arrows not debited
+        // (favours the player) rather than the reverse.
+        const newBalance = Math.max(0, balanceRaw - price);
+        await AsyncStorage.setItem(ARROWS_BALANCE_KEY, newBalance.toString());
+        return newBalance;
+    } catch {
+        return null;
     }
 }

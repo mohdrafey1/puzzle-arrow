@@ -1,13 +1,23 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { Linking, Pressable, Share, Text, View } from "react-native";
+import {
+    Linking,
+    Pressable,
+    ScrollView,
+    Share,
+    Text,
+    View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BannerAdWidget } from "../../components/BannerAdWidget";
 import { getUnlockedLevel } from "../../utils/storage";
+import { logger } from "../../utils/logger";
 
 export default function Home() {
     const [unlocked, setUnlocked] = useState(1);
     const router = useRouter();
+    const insets = useSafeAreaInsets();
 
     useFocusEffect(
         useCallback(() => {
@@ -36,15 +46,26 @@ export default function Home() {
                 title: "Share Puzzle Arrow",
             });
         } catch (error) {
-            console.error("Error sharing app:", error);
+            logger.error("Error sharing app:", error);
         }
     };
 
     return (
-        <View className="flex-1 bg-gray-100 dark:bg-gray-900 items-center justify-center p-6">
-            <Text className="text-4xl font-black text-gray-900 dark:text-gray-100 mb-8 tracking-tight">
-                Puzzle <Text className="text-blue-500">Arrow</Text>
-            </Text>
+        <View className="flex-1 bg-gray-100 dark:bg-gray-900">
+            <ScrollView
+                contentContainerStyle={{
+                    flexGrow: 1,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 24,
+                    paddingTop: insets.top + 24,
+                    paddingBottom: 24,
+                }}
+                showsVerticalScrollIndicator={false}
+            >
+                <Text className="text-4xl font-black text-gray-900 dark:text-gray-100 mb-8 tracking-tight">
+                    Puzzle <Text className="text-blue-500">Arrow</Text>
+                </Text>
 
             <View className="bg-white dark:bg-gray-800 p-8 rounded-3xl w-full max-w-sm items-center shadow-sm border border-gray-100 dark:border-gray-800">
                 <Text className="text-gray-500 dark:text-gray-400 text-sm font-bold uppercase tracking-widest mb-2">
@@ -100,18 +121,19 @@ export default function Home() {
                 </Text>
             </Pressable>
 
-            <Pressable
-                className="mt-3 bg-yellow-400 active:bg-yellow-500 w-full max-w-sm rounded-2xl py-3 items-center shadow-md flex-row justify-center gap-2"
-                onPress={rateApp}
-            >
-                <Ionicons name="star" size={20} color="white" />
-                <Text className="text-white text-lg font-bold">
-                    Rate us 5 stars on Play Store
-                </Text>
-            </Pressable>
+                <Pressable
+                    className="mt-3 bg-yellow-400 active:bg-yellow-500 w-full max-w-sm rounded-2xl py-3 items-center shadow-md flex-row justify-center gap-2"
+                    onPress={rateApp}
+                >
+                    <Ionicons name="star" size={20} color="white" />
+                    <Text className="text-white text-lg font-bold">
+                        Rate us 5 stars on Play Store
+                    </Text>
+                </Pressable>
+            </ScrollView>
 
-            {/* Ad Banner */}
-            <View className="absolute bottom-4 left-0 right-0">
+            {/* Ad Banner — in normal flow so it never overlaps content */}
+            <View style={{ paddingBottom: insets.bottom }}>
                 <BannerAdWidget />
             </View>
         </View>

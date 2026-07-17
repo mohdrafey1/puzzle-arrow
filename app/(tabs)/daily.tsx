@@ -7,7 +7,9 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
+    KeyboardAvoidingView,
     Modal,
+    Platform,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -16,6 +18,7 @@ import {
     View,
 } from "react-native";
 import {
+    applyVote,
     CommunityLevel,
     fetchCommunityLevels,
     voteCommunityLevel,
@@ -37,6 +40,7 @@ export default function CommunityScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [isOffline, setIsOffline] = useState(false);
+    const [loadError, setLoadError] = useState(false);
     const [username, setUsername] = useState<string | null>(null);
 
     // Username modal
@@ -93,9 +97,14 @@ export default function CommunityScreen() {
 
                 try {
                     const data = await fetchCommunityLevels();
-                    if (active) setLevels(data);
+                    if (active) {
+                        setLevels(data);
+                        setLoadError(false);
+                    }
                 } catch {
-                    // offline
+                    // Reachable-but-failed (e.g. rules/index error) — distinct
+                    // from the offline screen handled above.
+                    if (active) setLoadError(true);
                 } finally {
                     if (active) setLoading(false);
                 }
@@ -113,8 +122,9 @@ export default function CommunityScreen() {
         try {
             const data = await fetchCommunityLevels();
             setLevels(data);
+            setLoadError(false);
         } catch {
-            // offline
+            setLoadError(true);
         } finally {
             setRefreshing(false);
         }
@@ -130,19 +140,27 @@ export default function CommunityScreen() {
     };
 
     const handlePlayLevel = (level: CommunityLevel) => {
-        const shape = Array.from({ length: level.size }, () =>
-            Array.from({ length: level.size }, () => true),
+        // Preserve the level's real (possibly non-square) dimensions instead of
+        // forcing a full square, so it plays exactly as authored/play-tested.
+        const cols = level.cols ?? level.size;
+        const rows = level.rows ?? level.size;
+        const size = Math.max(cols, rows);
+        const shape = Array.from({ length: size }, (_, y) =>
+            Array.from({ length: size }, (_, x) => x < cols && y < rows),
         );
         setPreviewLevel({
             id: 0,
-            size: level.size,
+            size,
             shape,
             tiles: level.tiles.map((t) => ({
                 path: t.path,
                 direction: t.direction,
             })),
         });
-        router.push("/game/0?source=community" as any);
+        // Pass the real community id so completion tracks this specific level.
+        router.push(
+            `/game/0?source=community&cid=${encodeURIComponent(level.id)}` as any,
+        );
     };
 
     const handleVote = async (levelId: string, vote: "up" | "down") => {
@@ -154,12 +172,19 @@ export default function CommunityScreen() {
         if (votingRef.current.has(levelId)) return;
         votingRef.current.add(levelId);
 
+        // Optimistic update — no full re-download, list doesn't jump under the
+        // user's finger.
+        const snapshot = levels;
+        setLevels((cur) =>
+            cur.map((l) =>
+                l.id === levelId ? applyVote(l, username, vote) : l,
+            ),
+        );
+
         try {
             await voteCommunityLevel(levelId, username, vote);
-            // Refresh the list
-            const data = await fetchCommunityLevels();
-            setLevels(data);
         } catch {
+            setLevels(snapshot); // revert on failure
             Alert.alert("Error", "Failed to vote. Try again.");
         } finally {
             votingRef.current.delete(levelId);
@@ -432,19 +457,43 @@ export default function CommunityScreen() {
                     />
                 }
                 ListEmptyComponent={
-                    <View className="items-center py-16">
-                        <Ionicons
-                            name="planet-outline"
-                            size={64}
-                            color={isDark ? "#4B5563" : "#D1D5DB"}
-                        />
-                        <Text className="text-gray-400 dark:text-gray-500 mt-4 text-lg font-semibold">
-                            No community levels yet
-                        </Text>
-                        <Text className="text-gray-400 dark:text-gray-600 mt-1 text-sm">
-                            Be the first to create one!
-                        </Text>
-                    </View>
+                    loadError ? (
+                        <View className="items-center py-16 px-8">
+                            <Ionicons
+                                name="alert-circle-outline"
+                                size={64}
+                                color={isDark ? "#4B5563" : "#D1D5DB"}
+                            />
+                            <Text className="text-gray-400 dark:text-gray-500 mt-4 text-lg font-semibold text-center">
+                                Couldn&apos;t load levels
+                            </Text>
+                            <Text className="text-gray-400 dark:text-gray-600 mt-1 text-sm text-center">
+                                Something went wrong. Pull down to try again.
+                            </Text>
+                            <Pressable
+                                onPress={handleRefresh}
+                                className="mt-4 bg-indigo-500 active:bg-indigo-600 px-6 py-3 rounded-2xl"
+                            >
+                                <Text className="text-white font-bold">
+                                    Retry
+                                </Text>
+                            </Pressable>
+                        </View>
+                    ) : (
+                        <View className="items-center py-16">
+                            <Ionicons
+                                name="planet-outline"
+                                size={64}
+                                color={isDark ? "#4B5563" : "#D1D5DB"}
+                            />
+                            <Text className="text-gray-400 dark:text-gray-500 mt-4 text-lg font-semibold">
+                                No community levels yet
+                            </Text>
+                            <Text className="text-gray-400 dark:text-gray-600 mt-1 text-sm">
+                                Be the first to create one!
+                            </Text>
+                        </View>
+                    )
                 }
                 renderItem={({ item }) => {
                     const netScore = item.thumbsUp - item.thumbsDown;
@@ -561,6 +610,9 @@ export default function CommunityScreen() {
                                             e.stopPropagation();
                                             handleVote(item.id, "up");
                                         }}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Upvote level"
+                                        hitSlop={6}
                                         className={`p-2 rounded-xl ${
                                             userVote === "up"
                                                 ? "bg-emerald-500"
@@ -586,6 +638,9 @@ export default function CommunityScreen() {
                                             e.stopPropagation();
                                             handleVote(item.id, "down");
                                         }}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Downvote level"
+                                        hitSlop={6}
                                         className={`p-2 rounded-xl ${
                                             userVote === "down"
                                                 ? "bg-red-500"
@@ -621,7 +676,8 @@ export default function CommunityScreen() {
                     setPendingAction(null);
                 }}
             >
-                <View
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === "ios" ? "padding" : "height"}
                     className="flex-1 items-center justify-center"
                     style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
                 >
@@ -631,6 +687,9 @@ export default function CommunityScreen() {
                                 setShowModal(false);
                                 setPendingAction(null);
                             }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Close"
+                            hitSlop={8}
                             className="absolute top-4 right-4 p-2"
                         >
                             <Ionicons
@@ -704,7 +763,7 @@ export default function CommunityScreen() {
                             )}
                         </Pressable>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
             </Modal>
         </View>
     );

@@ -1,15 +1,3 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@layer utilities {
-    .theme-light {
-        --color-bg: #f3f4f6;
-        --color-text: #1f2937;
-    }
-
-    .theme-dark {
-        --color-bg: #111827;
-        --color-text: #f9fafb;
-    }
-}

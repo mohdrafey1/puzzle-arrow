@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import mobileAds, {
     AdEventType,
     AppOpenAd,
@@ -7,6 +8,11 @@ import mobileAds, {
     RewardedAdEventType,
     TestIds,
 } from "react-native-google-mobile-ads";
+import { logger } from "./logger";
+
+// Ads are configured for Android only (see app.json androidAppId). Guard every
+// entry point so iOS/web calls become harmless no-ops instead of erroring.
+const ADS_SUPPORTED = Platform.OS === "android";
 
 // Automatically use test ads in dev, real ads in production
 const USE_TEST_ADS = __DEV__;
@@ -43,20 +49,22 @@ let isInitialized = false;
 let initPromise: Promise<void> | null = null;
 
 export function initializeAds(): Promise<void> {
+    if (!ADS_SUPPORTED) return Promise.resolve();
     if (isInitialized) return Promise.resolve();
     if (initPromise) return initPromise;
 
-    initPromise = mobileAds()
+    const p = mobileAds()
         .initialize()
         .then((status) => {
-            console.log("[AdMob] Initialization successful", status);
+            logger.log("[AdMob] Initialization successful", status);
             isInitialized = true;
         })
         .catch((e) => {
-            console.error("[AdMob] Initialization error:", e);
+            logger.error("[AdMob] Initialization error:", e);
         });
 
-    return initPromise;
+    initPromise = p;
+    return p;
 }
 
 // ============================================
@@ -70,6 +78,17 @@ const STORAGE_KEYS = {
     levelCompletionCount: "@ads_level_completion_count",
     gameOverCount: "@ads_game_over_count",
 };
+
+// App Open ads must not fire on every foreground. Enforce a minimum interval
+// between shows (AdMob-policy friendly and far less intrusive).
+const APP_OPEN_MIN_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
+let lastAppOpenShownAt = 0;
+// Suppress the App Open ad briefly after any other full-screen ad, so an
+// interstitial/rewarded flow doesn't chain straight into an App Open ad.
+let suppressAppOpenUntil = 0;
+function suppressAppOpenBriefly() {
+    suppressAppOpenUntil = Date.now() + 5000;
+}
 
 export async function shouldShowInterstitialOnCompletion(): Promise<boolean> {
     try {
@@ -124,7 +143,7 @@ export async function preloadInterstitial(): Promise<void> {
         const unsubscribeLoaded = interstitialAd.addAdEventListener(
             AdEventType.LOADED,
             () => {
-                console.log("[AdMob] Interstitial Loaded");
+                logger.log("[AdMob] Interstitial Loaded");
                 isInterstitialLoaded = true;
                 unsubscribeLoaded();
             },
@@ -133,7 +152,7 @@ export async function preloadInterstitial(): Promise<void> {
         const unsubscribeError = interstitialAd.addAdEventListener(
             AdEventType.ERROR,
             (error) => {
-                console.error("[AdMob] Interstitial Error:", error);
+                logger.error("[AdMob] Interstitial Error:", error);
                 isInterstitialLoaded = false;
                 unsubscribeError();
             },
@@ -152,6 +171,7 @@ export function showInterstitial(): Promise<void> {
             preloadInterstitial(); // Reload for next time
             return;
         }
+        suppressAppOpenBriefly();
 
         const unsubscribeClosed = interstitialAd.addAdEventListener(
             AdEventType.CLOSED,
@@ -192,7 +212,7 @@ export async function preloadRewarded(): Promise<void> {
         const unsubscribeLoaded = rewardedAd.addAdEventListener(
             RewardedAdEventType.LOADED,
             () => {
-                console.log("[AdMob] Rewarded Ad Loaded");
+                logger.log("[AdMob] Rewarded Ad Loaded");
                 isRewardedLoaded = true;
                 unsubscribeLoaded();
             },
@@ -201,7 +221,7 @@ export async function preloadRewarded(): Promise<void> {
         const unsubscribeError = rewardedAd.addAdEventListener(
             AdEventType.ERROR,
             (error) => {
-                console.error("[AdMob] Rewarded Ad Error:", error);
+                logger.error("[AdMob] Rewarded Ad Error:", error);
                 isRewardedLoaded = false;
                 unsubscribeError();
             },
@@ -225,6 +245,7 @@ export function showRewarded(): Promise<boolean> {
             return;
         }
 
+        suppressAppOpenBriefly();
         let earned = false;
 
         const unsubscribeEarned = rewardedAd.addAdEventListener(
@@ -275,7 +296,7 @@ export async function preloadAppOpen(): Promise<void> {
         const unsubscribeLoaded = appOpenAd.addAdEventListener(
             AdEventType.LOADED,
             () => {
-                console.log("[AdMob] App Open Ad Loaded");
+                logger.log("[AdMob] App Open Ad Loaded");
                 isAppOpenLoaded = true;
                 unsubscribeLoaded();
             },
@@ -284,7 +305,7 @@ export async function preloadAppOpen(): Promise<void> {
         const unsubscribeError = appOpenAd.addAdEventListener(
             AdEventType.ERROR,
             (error) => {
-                console.error("[AdMob] App Open Ad Error:", error);
+                logger.error("[AdMob] App Open Ad Error:", error);
                 isAppOpenLoaded = false;
                 unsubscribeError();
             },
@@ -298,6 +319,13 @@ export async function preloadAppOpen(): Promise<void> {
 
 export function showAppOpen(): void {
     if (!appOpenAd || !isAppOpenLoaded) return;
+
+    const now = Date.now();
+    // Respect the cooldown and the post-ad suppression window.
+    if (now < suppressAppOpenUntil) return;
+    if (now - lastAppOpenShownAt < APP_OPEN_MIN_INTERVAL_MS) return;
+
+    lastAppOpenShownAt = now;
 
     const unsubscribeClosed = appOpenAd.addAdEventListener(
         AdEventType.CLOSED,

@@ -35,12 +35,17 @@ function randomBetween(a: number, b: number) {
 }
 
 function Particle({ delay, colors }: { delay: number; colors: string[] }) {
-    const x = useSharedValue(randomBetween(0, W));
+    const startX = randomBetween(0, W);
+    const x = useSharedValue(startX);
     const y = useSharedValue(-20);
     const opacity = useSharedValue(0);
+    const rotate = useSharedValue(randomBetween(0, 360));
     const size = randomBetween(6, 14);
     const color = colors[Math.floor(Math.random() * colors.length)];
     const dur = randomBetween(900, 1800);
+    // Horizontal drift + spin so particles behave like real confetti.
+    const drift = randomBetween(-W * 0.15, W * 0.15);
+    const spin = randomBetween(-360, 360);
 
     useEffect(() => {
         opacity.value = withDelay(delay, withTiming(1, { duration: 100 }));
@@ -51,6 +56,14 @@ function Particle({ delay, colors }: { delay: number; colors: string[] }) {
                 easing: Easing.out(Easing.quad),
             }),
         );
+        x.value = withDelay(
+            delay,
+            withTiming(startX + drift, { duration: dur }),
+        );
+        rotate.value = withDelay(
+            delay,
+            withTiming(rotate.value + spin, { duration: dur }),
+        );
         opacity.value = withDelay(
             delay + dur * 0.7,
             withTiming(0, { duration: dur * 0.3 }),
@@ -58,7 +71,11 @@ function Particle({ delay, colors }: { delay: number; colors: string[] }) {
     }, []);
 
     const animStyle = useAnimatedStyle(() => ({
-        transform: [{ translateX: x.value }, { translateY: y.value }],
+        transform: [
+            { translateX: x.value },
+            { translateY: y.value },
+            { rotate: `${rotate.value}deg` },
+        ],
         opacity: opacity.value,
     }));
 

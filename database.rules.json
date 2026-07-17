@@ -1,0 +1,33 @@
+{
+  "//": "Firebase Realtime Database security rules for Puzzle Arrow. Deploy with `firebase deploy --only database`. These enforce shape/type validation and the indexes the app relies on (leaderboard by level, community_levels by score). NOTE: the app is currently unauthenticated, so per-user write ownership cannot be fully enforced here — enabling Firebase Anonymous Auth and binding usernames to auth.uid is the recommended next step for true anti-spoofing.",
+  "rules": {
+    "leaderboard": {
+      ".indexOn": ["level"],
+      ".read": true,
+      "$username": {
+        ".write": true,
+        ".validate": "newData.hasChildren(['username','level','updatedAt']) && newData.child('username').val() === $username && $username.matches(/^[a-zA-Z0-9_]{3,15}$/)",
+        "username": { ".validate": "newData.isString()" },
+        "level": { ".validate": "newData.isNumber() && newData.val() >= 1" },
+        "updatedAt": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
+      }
+    },
+    "community_levels": {
+      ".indexOn": ["score", "createdAt"],
+      ".read": true,
+      "$levelId": {
+        ".write": true,
+        ".validate": "newData.hasChildren(['creator','size','tiles','createdAt'])",
+        "creator": { ".validate": "newData.isString() && newData.val().matches(/^[a-zA-Z0-9_]{3,15}$/)" },
+        "size": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 50" },
+        "rows": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 50" },
+        "cols": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 50" },
+        "thumbsUp": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "thumbsDown": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "score": { ".validate": "newData.isNumber()" },
+        "createdAt": { ".validate": "newData.isNumber()" }
+      }
+    }
+  }
+}

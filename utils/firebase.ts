@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
+import { logger } from "./logger";
 
 const firebaseConfig = {
     apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -10,6 +11,15 @@ const firebaseConfig = {
     messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
     appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
+
+// Fail loudly in development so a missing .env doesn't silently break the
+// community/leaderboard features (see .env.example).
+if (!firebaseConfig.apiKey || !firebaseConfig.databaseURL) {
+    logger.warn(
+        "[Firebase] Missing configuration. Copy .env.example to .env and fill " +
+            "in EXPO_PUBLIC_FIREBASE_* values — community & leaderboard will not work.",
+    );
+}
 
 const app = initializeApp(firebaseConfig);
 export const db = getDatabase(app);

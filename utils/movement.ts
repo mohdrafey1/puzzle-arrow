@@ -27,16 +27,19 @@ export function canMove(
     const occupied = Array(boardSize)
         .fill(0)
         .map(() => Array(boardSize).fill(false));
+    const inBounds = (p: Point) =>
+        p.x >= 0 && p.x < boardSize && p.y >= 0 && p.y < boardSize;
+
     for (const other of board) {
         if (other.id === tile.id || other.removed) continue;
         for (const p of other.path) {
-            occupied[p.y][p.x] = true;
+            if (inBounds(p)) occupied[p.y][p.x] = true;
         }
     }
     // Mark own body (excluding head) so the arrow can't exit through itself
     for (let i = 0; i < tile.path.length - 1; i++) {
         const p = tile.path[i];
-        occupied[p.y][p.x] = true;
+        if (inBounds(p)) occupied[p.y][p.x] = true;
     }
 
     const head = tile.path[tile.path.length - 1];
