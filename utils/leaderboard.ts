@@ -1,7 +1,6 @@
 import {
     get,
     limitToLast,
-    onValue,
     orderByChild,
     query,
     ref,
@@ -68,37 +67,6 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
 
     // We sort the data on the client side so we don't depend on Firebase index rules
     return entries.sort((a, b) => b.level - a.level);
-}
-
-/**
- * Subscribe to real-time leaderboard updates.
- * Returns an unsubscribe function.
- */
-export function subscribeLeaderboard(
-    callback: (entries: LeaderboardEntry[]) => void,
-): () => void {
-    const leaderboardRef = query(
-        ref(db, "leaderboard"),
-        orderByChild("level"),
-        limitToLast(100),
-    );
-
-    const unsubscribe = onValue(leaderboardRef, (snapshot) => {
-        if (!snapshot.exists()) {
-            callback([]);
-            return;
-        }
-
-        const entries: LeaderboardEntry[] = [];
-        snapshot.forEach((child) => {
-            entries.push(child.val() as LeaderboardEntry);
-        });
-
-        // We sort the data on the client side
-        callback(entries.sort((a, b) => b.level - a.level));
-    });
-
-    return unsubscribe;
 }
 
 /**

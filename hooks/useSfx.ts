@@ -85,9 +85,22 @@ export function useSfx() {
 
     const playSfx = useCallback(async (type: SfxType) => {
         if (!sfxEnabled.current) return;
-        if (selection.current[type] === "none") return;
-        const sound = sounds.current[type];
-        if (!sound) return;
+        const file = selection.current[type];
+        if (file === "none") return;
+
+        // If preload hasn't finished yet (fast first tap), create the player on
+        // demand so the very first sound of a session isn't silently dropped.
+        let sound = sounds.current[type];
+        if (!sound) {
+            const source = AUDIO_MAP[file];
+            if (!source) return;
+            try {
+                sound = createAudioPlayer(source);
+                sounds.current[type] = sound;
+            } catch {
+                return;
+            }
+        }
         try {
             sound.volume = volume.current;
             sound.seekTo(0);

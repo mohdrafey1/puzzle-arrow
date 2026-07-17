@@ -6,7 +6,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
+    KeyboardAvoidingView,
     Modal,
+    Platform,
     Pressable,
     RefreshControl,
     Text,
@@ -157,6 +159,13 @@ export default function LeaderboardScreen() {
         }
     };
 
+    // Whether the sticky "My Score" footer is showing (user not in top-100).
+    const showStickyFooter = !!(
+        username &&
+        userEntry &&
+        !entries.some((e) => e.username === username)
+    );
+
     const getRankStyle = (rank: number) => {
         if (rank === 1)
             return {
@@ -294,7 +303,9 @@ export default function LeaderboardScreen() {
                 keyExtractor={(item) => item.username}
                 contentContainerStyle={{
                     paddingHorizontal: 24,
-                    paddingBottom: 24,
+                    // Reserve room so the last row isn't hidden behind the
+                    // absolutely-positioned sticky footer.
+                    paddingBottom: showStickyFooter ? 140 : 24,
                 }}
                 refreshControl={
                     <RefreshControl
@@ -416,7 +427,8 @@ export default function LeaderboardScreen() {
                 animationType="fade"
                 onRequestClose={() => setShowModal(false)}
             >
-                <View
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === "ios" ? "padding" : "height"}
                     className="flex-1 items-center justify-center"
                     style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
                 >
@@ -424,6 +436,9 @@ export default function LeaderboardScreen() {
                         {/* Close button */}
                         <Pressable
                             onPress={() => setShowModal(false)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Close"
+                            hitSlop={8}
                             className="absolute top-4 right-4 p-2"
                         >
                             <Ionicons
@@ -445,8 +460,8 @@ export default function LeaderboardScreen() {
                                 Choose Username
                             </Text>
                             <Text className="text-gray-500 dark:text-gray-400 text-center mt-2 text-sm leading-5">
-                                Pick a unique name for the leaderboard. This
-                                cannot be changed later.
+                                Pick a unique name for the leaderboard. You can
+                                change it later in Settings.
                             </Text>
                         </View>
 
@@ -497,7 +512,7 @@ export default function LeaderboardScreen() {
                             )}
                         </Pressable>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
             </Modal>
         </View>
     );

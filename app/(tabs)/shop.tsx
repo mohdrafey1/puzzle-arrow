@@ -12,12 +12,11 @@ import {
 } from "../../utils/customizations";
 import {
     ActiveCustomization,
-    addArrows,
     getActiveCustomization,
     getArrowsBalance,
     getUnlockedItems,
+    purchaseItem,
     setActiveCustomization,
-    unlockItem,
 } from "../../utils/storage";
 
 export default function ShopScreen() {
@@ -72,8 +71,13 @@ export default function ShopScreen() {
                     text: "Unlock",
                     style: "default",
                     onPress: async () => {
-                        await addArrows(-item.price);
-                        await unlockItem(item.id);
+                        const result = await purchaseItem(item.id, item.price);
+                        if (result === null) {
+                            Alert.alert(
+                                "Purchase failed",
+                                "Could not complete the purchase. Please try again.",
+                            );
+                        }
                         loadData();
                     },
                 },

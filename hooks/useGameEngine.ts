@@ -274,6 +274,9 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
                         }, 500);
                     } else {
                         setTimeout(() => {
+                            // Clear the error highlight once the bump animation
+                            // has played so the tile doesn't stay red.
+                            setErrorTileId(null);
                             animationLock.current = false;
                         }, 240);
                     }
@@ -286,6 +289,8 @@ export function useGameEngine(levelId: number, onLevelComplete: () => void) {
 
     const reviveGame = useCallback(() => {
         setIsGameOver(false);
+        setErrorTileId(null);
+        animationLock.current = false;
         setHearts((prev) => prev + 1);
     }, []);
 

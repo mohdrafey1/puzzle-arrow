@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { AudioPlayer, createAudioPlayer } from "expo-audio";
+import Constants from "expo-constants";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useColorScheme } from "nativewind";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -14,8 +15,10 @@ import {
 } from "react-native";
 import { AUDIO_MAP } from "../../hooks/useSfx";
 import {
+    clearLeaderboardUsername,
     DEFAULT_SFX_SELECTION,
     getHapticsEnabled,
+    getLeaderboardUsername,
     getSfxEnabled,
     getSfxSelection,
     getSfxVolume,
@@ -74,6 +77,7 @@ export default function MeSettings() {
     const [sfxSel, setSfxSel] = useState<SfxSelection>(DEFAULT_SFX_SELECTION);
     const [sfxVolume, setSfxVolumeState] = useState(0.5);
     const [testLevel, setTestLevel] = useState("");
+    const [username, setUsername] = useState<string | null>(null);
     const router = useRouter();
     const activePreviewSound = useRef<AudioPlayer | null>(null);
 
@@ -83,8 +87,38 @@ export default function MeSettings() {
             getSfxEnabled().then(setSfxOn);
             getSfxSelection().then(setSfxSel);
             getSfxVolume().then(setSfxVolumeState);
+            getLeaderboardUsername().then(setUsername);
         }, []),
     );
+
+    const handleChangeUsername = () => {
+        if (!username) {
+            Alert.alert(
+                "No Username Set",
+                "Visit the Leaderboard or Community tab to choose a username.",
+            );
+            return;
+        }
+        Alert.alert(
+            "Change Username",
+            `Your current username is @${username}. Clearing it lets you pick a new one from the Leaderboard or Community tab. Your existing leaderboard entry keeps the old name.`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Clear Username",
+                    style: "destructive",
+                    onPress: async () => {
+                        await clearLeaderboardUsername();
+                        setUsername(null);
+                        Alert.alert(
+                            "Username Cleared",
+                            "Set a new one from the Leaderboard or Community tab.",
+                        );
+                    },
+                },
+            ],
+        );
+    };
 
     const handleReset = () => {
         Alert.alert(
@@ -265,6 +299,9 @@ export default function MeSettings() {
                         <View className="flex-row items-center gap-3">
                             <Pressable
                                 onPress={() => adjustVolume(-0.1)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Decrease volume"
+                                hitSlop={10}
                                 className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 items-center justify-center active:bg-gray-300 dark:active:bg-gray-600"
                             >
                                 <Text className="text-gray-700 dark:text-gray-300 font-bold text-lg">
@@ -276,6 +313,9 @@ export default function MeSettings() {
                             </Text>
                             <Pressable
                                 onPress={() => adjustVolume(0.1)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Increase volume"
+                                hitSlop={10}
                                 className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 items-center justify-center active:bg-gray-300 dark:active:bg-gray-600"
                             >
                                 <Text className="text-gray-700 dark:text-gray-300 font-bold text-lg">
@@ -324,6 +364,31 @@ export default function MeSettings() {
                         size={20}
                         color={isDark ? "#6B7280" : "#9CA3AF"}
                     />
+                </Pressable>
+
+                {/* Change Username */}
+                <Pressable
+                    onPress={handleChangeUsername}
+                    className="flex-row items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700 active:bg-gray-50 dark:active:bg-gray-700"
+                >
+                    <View className="flex-row items-center gap-3">
+                        <Ionicons name="person-circle" size={20} color="#6366F1" />
+                        <Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            {username ? "Change Username" : "Set Username"}
+                        </Text>
+                    </View>
+                    <View className="flex-row items-center gap-2">
+                        {username && (
+                            <Text className="text-sm font-bold text-indigo-500">
+                                @{username}
+                            </Text>
+                        )}
+                        <Ionicons
+                            name="chevron-forward"
+                            size={20}
+                            color={isDark ? "#6B7280" : "#9CA3AF"}
+                        />
+                    </View>
                 </Pressable>
 
                 {/* Dev Level Jump */}
@@ -442,7 +507,7 @@ export default function MeSettings() {
                 Puzzle Arrow
             </Text>
             <Text className="text-center text-gray-400 text-xs mt-1 mb-8">
-                Version 1.0.0
+                Version {Constants.expoConfig?.version ?? "1.1.3"}
             </Text>
         </ScrollView>
     );

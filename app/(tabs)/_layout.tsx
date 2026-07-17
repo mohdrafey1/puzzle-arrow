@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { useColorScheme } from "nativewind";
 import React from "react";
+import { HapticTab } from "../../components/haptic-tab";
 
 export default function TabLayout() {
     const { colorScheme } = useColorScheme();
@@ -11,6 +12,7 @@ export default function TabLayout() {
         <Tabs
             screenOptions={{
                 headerShown: false,
+                tabBarButton: HapticTab,
                 tabBarStyle: {
                     backgroundColor: isDark ? "#1F2937" : "#FFFFFF",
                     borderTopColor: isDark ? "#374151" : "#E5E7EB",
