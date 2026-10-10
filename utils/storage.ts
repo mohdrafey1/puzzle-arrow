@@ -1,4 +1,27 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { clearDailyProgress } from "./dailyChallenge";
+import {
+    applyLevelCompletion,
+    CompletionRecord,
+    LevelCompletionIdentity,
+    mergeCompletionRecords,
+    normalizeUserStats,
+    UserStats,
+} from "./progress";
+
+export type {
+    CompletionRecord,
+    LevelCompletionIdentity,
+    UserStats,
+} from "./progress";
+
+// Keep read/modify/write operations ordered so rapid completions cannot lose data.
+let progressWrites: Promise<unknown> = Promise.resolve();
+function serializeProgressWrite<T>(write: () => Promise<T>): Promise<T> {
+    const result = progressWrites.then(write, write);
+    progressWrites = result.catch(() => undefined);
+    return result;
+}
 
 const UNLOCKED_LEVEL_KEY = "@unlocked_level";
 const THEME_KEY = "@app_theme";
@@ -29,35 +52,37 @@ export const DEFAULT_SFX_SELECTION: SfxSelection = {
     gamewin: "clapping_default.m4a",
 };
 
-export interface CompletionRecord {
-    levelId: number;
-    time: number;
-    heartsUsed: number;
-    stars: number;
+async function readUnlockedLevel(): Promise<number> {
+    const val = await AsyncStorage.getItem(UNLOCKED_LEVEL_KEY);
+    const parsed = val ? Number.parseInt(val, 10) : 1;
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
 export async function getUnlockedLevel(): Promise<number> {
     try {
-        const val = await AsyncStorage.getItem(UNLOCKED_LEVEL_KEY);
-        return val ? parseInt(val, 10) : 1;
-    } catch (e) {
+        return await readUnlockedLevel();
+    } catch {
         return 1;
     }
 }
 
 export async function setUnlockedLevel(level: number): Promise<void> {
-    try {
-        await AsyncStorage.setItem(UNLOCKED_LEVEL_KEY, level.toString());
-    } catch (e) {
-        // skip
-    }
+    return serializeProgressWrite(async () => {
+        if (!Number.isInteger(level) || level < 1)
+            throw new RangeError("Invalid unlocked level");
+        const current = await readUnlockedLevel();
+        await AsyncStorage.setItem(
+            UNLOCKED_LEVEL_KEY,
+            Math.max(current, level).toString(),
+        );
+    });
 }
 
 export async function getThemePreference(): Promise<ThemeType> {
     try {
         const val = await AsyncStorage.getItem(THEME_KEY);
         return (val as ThemeType) || "system";
-    } catch (e) {
+    } catch {
         return "system";
     }
 }
@@ -65,18 +90,29 @@ export async function getThemePreference(): Promise<ThemeType> {
 export async function setThemePreference(theme: ThemeType): Promise<void> {
     try {
         await AsyncStorage.setItem(THEME_KEY, theme);
-    } catch (e) {
+    } catch {
         // skip
     }
 }
 
+/** Reset campaign/daily results while retaining owned items and community history. */
 export async function resetProgress(): Promise<void> {
-    try {
-        await AsyncStorage.removeItem(UNLOCKED_LEVEL_KEY);
-        await AsyncStorage.removeItem(COMPLETED_LEVELS_KEY);
-    } catch (e) {
-        // skip
-    }
+    return serializeProgressWrite(async () => {
+        const stats = await readUserStats();
+        await clearDailyProgress();
+        await AsyncStorage.multiRemove([
+            UNLOCKED_LEVEL_KEY,
+            COMPLETED_LEVELS_KEY,
+        ]);
+        await AsyncStorage.setItem(
+            STATS_KEY,
+            JSON.stringify({
+                ...stats,
+                levelsCompleted: 0,
+                completedCampaignLevelIds: [],
+            }),
+        );
+    });
 }
 
 export async function getHapticsEnabled(): Promise<boolean> {
@@ -179,10 +215,17 @@ export async function setCachedLevel(
     }
 }
 
+async function readCompletedLevels(): Promise<CompletionRecord[]> {
+    const val = await AsyncStorage.getItem(COMPLETED_LEVELS_KEY);
+    const records = val ? JSON.parse(val) : [];
+    if (!Array.isArray(records))
+        throw new Error("Saved completion records are invalid");
+    return records;
+}
+
 export async function getCompletedLevels(): Promise<CompletionRecord[]> {
     try {
-        const val = await AsyncStorage.getItem(COMPLETED_LEVELS_KEY);
-        return val ? JSON.parse(val) : [];
+        return await readCompletedLevels();
     } catch {
         return [];
     }
@@ -191,25 +234,25 @@ export async function getCompletedLevels(): Promise<CompletionRecord[]> {
 export async function saveCompletedLevel(
     record: CompletionRecord,
 ): Promise<void> {
-    try {
-        const existing = await getCompletedLevels();
-        const idx = existing.findIndex((r) => r.levelId === record.levelId);
-        if (idx >= 0) {
-            // Keep the best run (shortest time)
-            if (record.time < existing[idx].time) {
-                existing[idx] = record;
-            }
-        } else {
-            existing.push(record);
+    return serializeProgressWrite(async () => {
+        // Freeze legacy identity migration before inserting the current win;
+        // otherwise its later achievement callback can mistake it for a replay.
+        const rawStats = await AsyncStorage.getItem(STATS_KEY);
+        const storedStats = rawStats ? JSON.parse(rawStats) : null;
+        if (!Array.isArray(storedStats?.completedCampaignLevelIds)) {
+            await AsyncStorage.setItem(
+                STATS_KEY,
+                JSON.stringify(await readUserStats()),
+            );
         }
-        existing.sort((a, b) => a.levelId - b.levelId);
+        // Mutations use strict readers: a transient read failure must never erase
+        // existing history by turning it into an empty result.
+        const existing = await readCompletedLevels();
         await AsyncStorage.setItem(
             COMPLETED_LEVELS_KEY,
-            JSON.stringify(existing),
+            JSON.stringify(mergeCompletionRecords(existing, record)),
         );
-    } catch {
-        // skip
-    }
+    });
 }
 
 export async function getLeaderboardUsername(): Promise<string | null> {
@@ -259,20 +302,6 @@ export async function saveLevelDraft(draft: LevelDraft | null): Promise<void> {
 
 // --- Progression & Currency ---
 
-export interface UserStats {
-    levelsCompleted: number;
-    communityLevelsBeaten: number;
-    levelsCreated: number;
-    completedCommunityLevelIds: string[];
-}
-
-const DEFAULT_STATS: UserStats = {
-    levelsCompleted: 0,
-    communityLevelsBeaten: 0,
-    levelsCreated: 0,
-    completedCommunityLevelIds: [],
-};
-
 export async function getArrowsBalance(): Promise<number> {
     try {
         const val = await AsyncStorage.getItem(ARROWS_BALANCE_KEY);
@@ -293,26 +322,58 @@ export async function addArrows(amount: number): Promise<number> {
     }
 }
 
+async function readUserStats(): Promise<UserStats> {
+    const val = await AsyncStorage.getItem(STATS_KEY);
+    const stored = val ? JSON.parse(val) : null;
+    if (
+        stored !== null &&
+        (typeof stored !== "object" || Array.isArray(stored))
+    ) {
+        throw new Error("Saved progression is invalid");
+    }
+    // Once IDs are tracked, do not infer new wins from results written before
+    // the completion callback. This keeps first-completion detection reliable.
+    if (stored?.completedCampaignLevelIds) return normalizeUserStats(stored);
+    const [completions, unlocked] = await Promise.all([
+        readCompletedLevels(),
+        readUnlockedLevel(),
+    ]);
+    return normalizeUserStats(stored, completions, unlocked);
+}
+
 export async function getUserStats(): Promise<UserStats> {
     try {
-        const val = await AsyncStorage.getItem(STATS_KEY);
-        return val ? JSON.parse(val) : DEFAULT_STATS;
+        return await readUserStats();
     } catch {
-        return DEFAULT_STATS;
+        return normalizeUserStats(null);
     }
 }
 
 export async function updateUserStats(
     updates: Partial<UserStats>,
 ): Promise<UserStats> {
-    try {
-        const current = await getUserStats();
-        const next = { ...current, ...updates };
-        await AsyncStorage.setItem(STATS_KEY, JSON.stringify(next));
-        return next;
-    } catch {
-        return DEFAULT_STATS;
-    }
+    return serializeProgressWrite(async () => {
+        try {
+            const current = await getUserStats();
+            const next = { ...current, ...updates };
+            await AsyncStorage.setItem(STATS_KEY, JSON.stringify(next));
+            return next;
+        } catch {
+            return normalizeUserStats(null);
+        }
+    });
+}
+
+/** Uses the server document ID for community levels, never the preview route's 0. */
+export async function recordLevelCompletion(
+    identity: LevelCompletionIdentity,
+): Promise<{ stats: UserStats; isFirstCompletion: boolean }> {
+    return serializeProgressWrite(async () => {
+        const current = await readUserStats();
+        const result = applyLevelCompletion(current, identity);
+        await AsyncStorage.setItem(STATS_KEY, JSON.stringify(result.stats));
+        return result;
+    });
 }
 
 export async function getUnlockedAchievements(): Promise<string[]> {

@@ -428,10 +428,6 @@ export default function LevelEditor() {
 
     const playTest = useCallback(() => {
         if (arrows.length === 0) return;
-        // Build shape array: rows × cols, all true
-        const shape = Array.from({ length: gridRows }, () =>
-            Array.from({ length: gridCols }, () => true),
-        );
         // Pad to square for game engine compatibility
         const paddedSize = effectiveSize;
         const paddedShape = Array.from({ length: paddedSize }, (_, y) =>
@@ -520,7 +516,7 @@ export default function LevelEditor() {
         } finally {
             setSubmitting(false);
         }
-    }, [arrows, effectiveSize, router, selectedTags]);
+    }, [arrows, effectiveSize, router, selectedTags, pushHistory]);
 
     // Render a placed arrow as SVG
     const renderArrow = (arrow: PlacedArrow, index: number) => {
@@ -1233,11 +1229,12 @@ export default function LevelEditor() {
                     <View className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-4 border border-blue-100 dark:border-blue-800">
                         <Text className="text-blue-700 dark:text-blue-300 text-xs leading-5 font-medium">
                             • Tap cells to draw a path (auto-fills gaps!)
-                            {"\n"}• Pick a direction, then tap "Add Arrow"
+                            {"\n"}• Pick a direction, then tap &quot;Add
+                            Arrow&quot;
                             {"\n"}• Hold a placed arrow to delete it
                             {"\n"}• Tap the grid number for preset sizes
-                            {"\n"}• Use "Custom Size" for non-square grids (up
-                            to 50)
+                            {"\n"}• Use &quot;Custom Size&quot; for non-square
+                            grids (up to 50)
                             {"\n"}• Arrows: {arrows.length} placed | Grid:{" "}
                             {gridCols}×{gridRows}
                         </Text>

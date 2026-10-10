@@ -20,6 +20,9 @@ interface ArrowTileProps {
     boardSize: number;
     isResetting: boolean;
     hasError: boolean;
+    isHinted?: boolean;
+    hintColor?: string;
+    errorColor?: string;
     tileColor: string;
 }
 
@@ -30,10 +33,24 @@ export interface ArrowTileRef {
 export const ArrowTile = React.memo(
     forwardRef<ArrowTileRef, ArrowTileProps>(
         (
-            { tile, cellSize, boardSize, isResetting, hasError, tileColor },
+            {
+                tile,
+                cellSize,
+                boardSize,
+                isResetting,
+                hasError,
+                isHinted,
+                tileColor,
+                hintColor = "#0284C7",
+                errorColor = "#DC2626",
+            },
             ref,
         ) => {
-            const actualColor = hasError ? "#EF4444" : tileColor;
+            const actualColor = hasError
+                ? errorColor
+                : isHinted
+                  ? hintColor
+                  : tileColor;
 
             // Build Line Coordinates inside cell centers
             const pts = tile.path.map((p) => ({
@@ -91,14 +108,14 @@ export const ArrowTile = React.memo(
                     order,
                     withTiming(1, { duration: 260 }),
                 );
-            }, []);
+            }, [opacity]);
 
             useEffect(() => {
                 if (isResetting) {
                     opacity.value = withTiming(0, { duration: 220 });
                     progress.value = 0;
                 }
-            }, [isResetting]);
+            }, [isResetting, opacity, progress]);
 
             useEffect(() => {
                 if (hasError) {
@@ -113,7 +130,7 @@ export const ArrowTile = React.memo(
                         withTiming(0, { duration: 70 }),
                     );
                 }
-            }, [hasError]);
+            }, [hasError, cellSize, progress]);
 
             useImperativeHandle(ref, () => ({
                 onExit: () => {
@@ -163,15 +180,26 @@ export const ArrowTile = React.memo(
             const arrowAngle = { up: -90, right: 0, down: 90, left: 180 }[
                 tile.direction
             ];
-            const arrL = cellSize * 0.25;
-            const arrW = cellSize * 0.15;
+            const arrL = Math.max(4, cellSize * 0.3);
+            const arrW = Math.max(2.5, cellSize * 0.18);
 
             return (
                 <AnimatedG animatedProps={gProps}>
+                    {isHinted && (
+                        <Circle
+                            cx={pts[pts.length - 1].x}
+                            cy={pts[pts.length - 1].y}
+                            r={cellSize * 0.48}
+                            fill="none"
+                            stroke={hintColor}
+                            strokeWidth={2}
+                            strokeDasharray="3 3"
+                        />
+                    )}
                     <AnimatedPath
                         d={pathString}
                         stroke={actualColor}
-                        strokeWidth={cellSize * 0.08}
+                        strokeWidth={Math.max(1.8, cellSize * 0.085)}
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         fill="none"
@@ -182,7 +210,7 @@ export const ArrowTile = React.memo(
                     <AnimatedCircle
                         cx={M.x}
                         cy={M.y}
-                        r={cellSize * 0.04}
+                        r={Math.max(0.9, cellSize * 0.0425)}
                         fill={actualColor}
                         animatedProps={tailProps}
                     />

@@ -6,19 +6,24 @@ import { LevelData } from "../constants/levels";
  */
 let previewLevel: LevelData | null = null;
 let previewPassed = false;
+let previewIdentity: string = "editor";
 
-export function setPreviewLevel(level: LevelData) {
+export function setPreviewLevel(level: LevelData, identity = "editor") {
     previewLevel = level;
+    previewIdentity = identity;
     previewPassed = false; // reset on new level
 }
 
-export function getPreviewLevel(): LevelData | null {
-    return previewLevel;
+export function getPreviewLevel(identity?: string): LevelData | null {
+    return identity === undefined || identity === previewIdentity
+        ? previewLevel
+        : null;
 }
 
 export function clearPreviewLevel() {
     previewLevel = null;
     previewPassed = false;
+    previewIdentity = "editor";
 }
 
 export function markPreviewPassed() {

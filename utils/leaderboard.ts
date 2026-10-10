@@ -7,7 +7,7 @@ import {
     ref,
     set,
 } from "firebase/database";
-import { db } from "./firebase";
+import { getFirebaseDatabase } from "./firebase";
 
 export interface LeaderboardEntry {
     username: string;
@@ -21,7 +21,9 @@ export interface LeaderboardEntry {
 export async function checkUsernameAvailable(
     username: string,
 ): Promise<boolean> {
-    const snapshot = await get(ref(db, `leaderboard/${username}`));
+    const snapshot = await get(
+        ref(getFirebaseDatabase(), `leaderboard/${username}`),
+    );
     return !snapshot.exists();
 }
 
@@ -33,7 +35,7 @@ export async function submitScore(
     username: string,
     level: number,
 ): Promise<void> {
-    const entryRef = ref(db, `leaderboard/${username}`);
+    const entryRef = ref(getFirebaseDatabase(), `leaderboard/${username}`);
     const snapshot = await get(entryRef);
 
     if (snapshot.exists()) {
@@ -53,7 +55,7 @@ export async function submitScore(
  */
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
     const leaderboardRef = query(
-        ref(db, "leaderboard"),
+        ref(getFirebaseDatabase(), "leaderboard"),
         orderByChild("level"),
         limitToLast(100),
     );
@@ -78,7 +80,7 @@ export function subscribeLeaderboard(
     callback: (entries: LeaderboardEntry[]) => void,
 ): () => void {
     const leaderboardRef = query(
-        ref(db, "leaderboard"),
+        ref(getFirebaseDatabase(), "leaderboard"),
         orderByChild("level"),
         limitToLast(100),
     );
@@ -107,7 +109,9 @@ export function subscribeLeaderboard(
 export async function fetchUserEntry(
     username: string,
 ): Promise<LeaderboardEntry | null> {
-    const snapshot = await get(ref(db, `leaderboard/${username}`));
+    const snapshot = await get(
+        ref(getFirebaseDatabase(), `leaderboard/${username}`),
+    );
     if (!snapshot.exists()) return null;
     return snapshot.val() as LeaderboardEntry;
 }

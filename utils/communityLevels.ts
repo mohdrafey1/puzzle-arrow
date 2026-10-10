@@ -1,5 +1,5 @@
 import { get, push, ref, set, update } from "firebase/database";
-import { db } from "./firebase";
+import { getFirebaseDatabase } from "./firebase";
 
 export interface CommunityLevel {
     id: string;
@@ -25,7 +25,7 @@ export async function submitCommunityLevel(
     tiles: CommunityLevel["tiles"],
     tags: string[] = [],
 ): Promise<string> {
-    const levelsRef = ref(db, "community_levels");
+    const levelsRef = ref(getFirebaseDatabase(), "community_levels");
     const newRef = push(levelsRef);
     const id = newRef.key!;
 
@@ -49,7 +49,7 @@ export async function submitCommunityLevel(
  * Fetch all community levels, sorted by net score (thumbsUp - thumbsDown) desc.
  */
 export async function fetchCommunityLevels(): Promise<CommunityLevel[]> {
-    const snapshot = await get(ref(db, "community_levels"));
+    const snapshot = await get(ref(getFirebaseDatabase(), "community_levels"));
     if (!snapshot.exists()) return [];
 
     const levels: CommunityLevel[] = [];
@@ -79,7 +79,7 @@ export async function voteCommunityLevel(
     username: string,
     vote: "up" | "down",
 ): Promise<void> {
-    const levelRef = ref(db, `community_levels/${levelId}`);
+    const levelRef = ref(getFirebaseDatabase(), `community_levels/${levelId}`);
     const snapshot = await get(levelRef);
     if (!snapshot.exists()) return;
 

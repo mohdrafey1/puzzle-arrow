@@ -89,15 +89,25 @@ export default function MeSettings() {
     const handleReset = () => {
         Alert.alert(
             "Reset Progress",
-            "Are you sure you want to lose all your progress?",
+            "Reset campaign and daily results? Earned items, achievements, and community stats are kept.",
             [
                 { text: "Cancel", style: "cancel" },
                 {
                     text: "Reset",
                     style: "destructive",
                     onPress: async () => {
-                        await resetProgress();
-                        Alert.alert("Done", "Progress reset to level 1");
+                        try {
+                            await resetProgress();
+                            Alert.alert(
+                                "Done",
+                                "Campaign and daily results reset",
+                            );
+                        } catch {
+                            Alert.alert(
+                                "Could not reset",
+                                "Your saved data could not be updated. Please try again.",
+                            );
+                        }
                     },
                 },
             ],

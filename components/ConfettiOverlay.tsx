@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Dimensions, StyleSheet, View } from "react-native";
 import Animated, {
     Easing,
@@ -38,9 +38,11 @@ function Particle({ delay, colors }: { delay: number; colors: string[] }) {
     const x = useSharedValue(randomBetween(0, W));
     const y = useSharedValue(-20);
     const opacity = useSharedValue(0);
-    const size = randomBetween(6, 14);
-    const color = colors[Math.floor(Math.random() * colors.length)];
-    const dur = randomBetween(900, 1800);
+    const [size] = useState(() => randomBetween(6, 14));
+    const [color] = useState(
+        () => colors[Math.floor(Math.random() * colors.length)],
+    );
+    const [dur] = useState(() => randomBetween(900, 1800));
 
     useEffect(() => {
         opacity.value = withDelay(delay, withTiming(1, { duration: 100 }));
@@ -55,7 +57,7 @@ function Particle({ delay, colors }: { delay: number; colors: string[] }) {
             delay + dur * 0.7,
             withTiming(0, { duration: dur * 0.3 }),
         );
-    }, []);
+    }, [delay, dur, opacity, y]);
 
     const animStyle = useAnimatedStyle(() => ({
         transform: [{ translateX: x.value }, { translateY: y.value }],
@@ -80,7 +82,7 @@ function Particle({ delay, colors }: { delay: number; colors: string[] }) {
     );
 }
 
-export function ConfettiOverlay({
+export const ConfettiOverlay = React.memo(function ConfettiOverlay({
     visible,
     themeId,
 }: {
@@ -105,4 +107,4 @@ export function ConfettiOverlay({
             ))}
         </View>
     );
-}
+});

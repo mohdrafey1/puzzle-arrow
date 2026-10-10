@@ -133,16 +133,22 @@ export default function CommunityScreen() {
         const shape = Array.from({ length: level.size }, () =>
             Array.from({ length: level.size }, () => true),
         );
-        setPreviewLevel({
-            id: 0,
-            size: level.size,
-            shape,
-            tiles: level.tiles.map((t) => ({
-                path: t.path,
-                direction: t.direction,
-            })),
+        setPreviewLevel(
+            {
+                id: 0,
+                size: level.size,
+                shape,
+                tiles: level.tiles.map((t) => ({
+                    path: t.path,
+                    direction: t.direction,
+                })),
+            },
+            `community:${level.id}`,
+        );
+        router.push({
+            pathname: "/game/[level]",
+            params: { level: "0", source: "community", communityId: level.id },
         });
-        router.push("/game/0?source=community" as any);
     };
 
     const handleVote = async (levelId: string, vote: "up" | "down") => {

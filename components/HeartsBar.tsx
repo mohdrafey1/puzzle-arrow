@@ -28,7 +28,7 @@ export function HeartsBar({ hearts, maxHearts = 3 }: HeartsBarProps) {
             );
         }
         prevHearts.current = hearts;
-    }, [hearts]);
+    }, [hearts, shakeX]);
 
     const animatedStyle = useAnimatedStyle(() => {
         return {
@@ -38,14 +38,18 @@ export function HeartsBar({ hearts, maxHearts = 3 }: HeartsBarProps) {
 
     return (
         <Animated.View
-            style={animatedStyle}
-            className="flex-row items-center gap-2"
+            style={[
+                { flexDirection: "row", alignItems: "center", gap: 4 },
+                animatedStyle,
+            ]}
+            accessibilityLabel={`${hearts} of ${maxHearts} hearts remaining`}
+            className="flex-row items-center gap-1"
         >
             {Array.from({ length: maxHearts }).map((_, i) => (
                 <Ionicons
                     key={i}
                     name={i < hearts ? "heart" : "heart-outline"}
-                    size={32}
+                    size={22}
                     className={
                         i < hearts
                             ? "text-red-500"

@@ -1,298 +1,356 @@
-import { Direction, Point, TileData } from '../utils/movement';
+import seedrandom from "seedrandom";
+import type { Direction, TileData } from "../utils/movement";
+import {
+    analyzeLevel,
+    CAMPAIGN_VERSION,
+    DifficultyMetrics,
+    DifficultyProfile,
+    getDifficultyProfile,
+} from "./levelDifficulty";
 import {
     countActiveCells,
     generateShapeMask,
     getShapeForLevel,
-} from './shapes';
+} from "./shapes";
 
 export interface LevelData {
     id: number;
     size: number;
-    tiles: Omit<TileData, 'id'>[];
-    shape: boolean[][]; // which cells are active
+    tiles: Omit<TileData, "id">[];
+    shape: boolean[][];
+    version?: number;
+    difficulty?: { profile: DifficultyProfile; metrics: DifficultyMetrics };
 }
 
-import seedrandom from 'seedrandom';
+type Arrow = Omit<TileData, "id">;
+const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
+const VECTORS = [
+    [0, -1],
+    [0, 1],
+    [-1, 0],
+    [1, 0],
+];
 
-// ── Backward Level Generation ──────────────────────────────────────────
-// We generate the board BACKWARDS from a solved state.
-// We place snakes on the board one by one. Each snake must have a clear
-// "exit path" to the board edge AT THE MOMENT we place it.
-// Because it's placed later in reverse-time, it means in forward-gameplay
-// it will be removed EARLIER. Therefore, its exit path must be clear of
-// currently-placed snakes, but its BODY can safely block currently-placed snakes!
-// This mathematically guarantees 100% solvability no matter how tangled they get.
-function tryGenerateBackward(
-    rng: () => number,
-    size: number,
+interface Placement {
+    path: number[];
+    direction: number;
+    hits: Set<number>;
+    depth: number;
+    ray: number[];
+}
+
+/**
+ * Build in reverse removal order. A new arrow always has a clear exit, and its
+ * body may block earlier arrows. Every dependency therefore points forward in
+ * placement order; cycles and self-blocks are impossible by construction.
+ *
+ * Candidate bodies are selected for useful blocking relationships, including
+ * shared blockers and interleaved chains. Empty decorative gaps are preferable
+ * to a board padded with arrows that do not participate in the puzzle.
+ */
+function generateCandidate(
+    id: number,
+    seed: number,
+    profile: DifficultyProfile,
     shape: boolean[][],
-    activeCellCount: number,
-    minLen: number,
-    maxLen: number,
-): { tiles: Omit<TileData, 'id'>[]; filled: number } {
-    const occupied = Array(size)
-        .fill(0)
-        .map(() => Array(size).fill(false));
-
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            if (!shape[y][x]) occupied[y][x] = true;
-        }
+): Arrow[] {
+    const rng = seedrandom(`${CAMPAIGN_VERSION}:${id}:${seed}`);
+    const { size, targetDepth, targetStartingRatio } = profile;
+    const area = size * size;
+    const occupied = new Int16Array(area).fill(-1);
+    const active: number[] = [];
+    const coverage: number[][] = Array.from({ length: area }, () => []);
+    for (let cell = 0; cell < area; cell++) {
+        if (shape[Math.floor(cell / size)][cell % size]) active.push(cell);
+        else occupied[cell] = -2;
     }
-
-    const DIRS: Direction[] = ['up', 'down', 'left', 'right'];
-    const tiles: { path: Point[]; direction: Direction }[] = [];
-
-    let attemptsWithoutPlacement = 0;
-    // Increase max attempts significantly so the generator tries much harder
-    // to fill in empty cells without giving up too early on large boards.
-    const maxAttempts = 500 + activeCellCount * 5;
-
-    while (attemptsWithoutPlacement < maxAttempts) {
-        const emptyCells: Point[] = [];
-        for (let y = 0; y < size; y++) {
-            for (let x = 0; x < size; x++) {
-                if (!occupied[y][x]) emptyCells.push({ x, y });
+    const rays = Array.from({ length: area }, (_, cell) =>
+        VECTORS.map(([dx, dy]) => {
+            const cells: number[] = [];
+            let x = (cell % size) + dx,
+                y = Math.floor(cell / size) + dy;
+            while (x >= 0 && x < size && y >= 0 && y < size && shape[y][x]) {
+                cells.push(y * size + x);
+                x += dx;
+                y += dy;
+            }
+            return cells;
+        }),
+    );
+    const tiles: Placement[] = [];
+    const blocked: boolean[] = [];
+    let roots = 0;
+    while (true) {
+        const options: [number, number][] = [];
+        for (const cell of active) {
+            if (occupied[cell] !== -1) continue;
+            for (let direction = 0; direction < 4; direction++) {
+                const [dx, dy] = VECTORS[direction];
+                const neckX = (cell % size) - dx,
+                    neckY = Math.floor(cell / size) - dy;
+                if (
+                    neckX < 0 ||
+                    neckX >= size ||
+                    neckY < 0 ||
+                    neckY >= size ||
+                    occupied[neckY * size + neckX] !== -1
+                )
+                    continue;
+                if (rays[cell][direction].every((c) => occupied[c] === -1))
+                    options.push([cell, direction]);
             }
         }
-        if (emptyCells.length === 0) break;
-
-        // Weight edges higher to force long wrapping snakes on the outside
-        // that block the inside ones.
-        emptyCells.sort((a, b) => {
-            const aIsEdge =
-                a.x === 0 || a.y === 0 || a.x === size - 1 || a.y === size - 1;
-            const bIsEdge =
-                b.x === 0 || b.y === 0 || b.x === size - 1 || b.y === size - 1;
-            if (aIsEdge && !bIsEdge) return -1;
-            if (bIsEdge && !aIsEdge) return 1;
-            return 0; // maintain relative randomness
-        });
-
-        // 60% chance to force picking an edge cell if available, to build huge boundary blockers
-        let head = emptyCells[Math.floor(rng() * emptyCells.length)];
-        const edgeCells = emptyCells.filter(
-            (c) =>
-                c.x === 0 || c.y === 0 || c.x === size - 1 || c.y === size - 1,
-        );
-        if (edgeCells.length > 0 && rng() < 0.6) {
-            head = edgeCells[Math.floor(rng() * edgeCells.length)];
-        }
-
-        // Valid exit ray: ray must reach shape boundary WITHOUT hitting any occupied cell.
-        const validDirs = DIRS.filter((dir) => {
-            const dirX = dir === 'right' ? 1 : dir === 'left' ? -1 : 0;
-            const dirY = dir === 'down' ? 1 : dir === 'up' ? -1 : 0;
-            let cx = head.x + dirX;
-            let cy = head.y + dirY;
-            while (
-                cx >= 0 &&
-                cx < size &&
-                cy >= 0 &&
-                cy < size &&
-                shape[cy][cx]
-            ) {
-                if (occupied[cy][cx]) return false;
-                cx += dirX;
-                cy += dirY;
-            }
-            return true;
-        });
-
-        if (validDirs.length === 0) {
-            attemptsWithoutPlacement++;
-            continue;
-        }
-
-        const dir = validDirs[Math.floor(rng() * validDirs.length)];
-
-        // Temporarily reserve the exit ray so the snake's body doesn't cross its own escape path
-        const rayCells: Point[] = [];
-        const dirX = dir === 'right' ? 1 : dir === 'left' ? -1 : 0;
-        const dirY = dir === 'down' ? 1 : dir === 'up' ? -1 : 0;
-        let rx = head.x + dirX;
-        let ry = head.y + dirY;
-        while (rx >= 0 && rx < size && ry >= 0 && ry < size) {
-            // We mark all cells in the ray as occupied to act as a wall
-            if (!occupied[ry][rx]) {
-                occupied[ry][rx] = true;
-                rayCells.push({ x: rx, y: ry });
-            }
-            rx += dirX;
-            ry += dirY;
-        }
-
-        // Build snake body, walking into available empty cells
-        const isHeadOnEdge =
-            head.x === 0 ||
-            head.y === 0 ||
-            head.x === size - 1 ||
-            head.y === size - 1;
-
-        // If we are starting on the edge, force a massive snake to wrap the grid
-        const actualMaxLen = isHeadOnEdge
-            ? Math.min(size * 2, maxLen * 2)
-            : maxLen;
-        // Skew length distribution toward `actualMaxLen` so the board fills
-        // with longer, interlocking snakes instead of trivial 2- and 3-cell
-        // pieces. `1 - (1-t)^2` is the inverse of a quadratic ease, biased high.
-        const t = rng();
-        const skewed = 1 - (1 - t) * (1 - t);
-        const targetLen =
-            Math.floor(skewed * (actualMaxLen - minLen + 1)) + minLen;
-        const path: Point[] = [head];
-        let curr = head;
-
-        const opposite: Record<Direction, Direction> = {
-            up: 'down',
-            down: 'up',
-            left: 'right',
-            right: 'left',
-        };
-
-        for (let i = 1; i < targetLen; i++) {
-            let possible = [
-                { x: curr.x, y: curr.y - 1, d: 'up' as Direction },
-                { x: curr.x, y: curr.y + 1, d: 'down' as Direction },
-                { x: curr.x - 1, y: curr.y, d: 'left' as Direction },
-                { x: curr.x + 1, y: curr.y, d: 'right' as Direction },
-            ];
-
-            if (i === 1) {
-                // First body segment MUST grow away from the exit direction.
-                const opp = opposite[dir];
-                const oppMoves = possible.filter((m) => m.d === opp);
-                if (oppMoves.length > 0) {
-                    possible = oppMoves;
-                } else {
-                    possible = possible.filter((m) => m.d !== dir);
+        if (!options.length) break;
+        let best: Placement | undefined;
+        let bestScore = -Infinity;
+        const rootWeight =
+            9 + (roots / Math.max(1, tiles.length) - targetStartingRatio) * 12;
+        for (let sample = 0; sample < 100; sample++) {
+            const [head, direction] =
+                options[Math.floor(rng() * options.length)];
+            const ray = rays[head][direction];
+            const reserved = new Set(ray);
+            const seen = new Set([head]);
+            const path = [head];
+            const maxLength = Math.min(11, 5 + Math.floor(size / 3));
+            const targetLength = 3 + Math.floor(rng() * (maxLength - 2));
+            let current = head;
+            let previousDirection = direction ^ 1;
+            for (let step = 1; step < targetLength; step++) {
+                const neighbors: { cell: number; direction: number }[] = [];
+                for (let d = 0; d < 4; d++) {
+                    if (step === 1 && d !== (direction ^ 1)) continue;
+                    const [dx, dy] = VECTORS[d];
+                    const x = (current % size) + dx,
+                        y = Math.floor(current / size) + dy;
+                    const cell = y * size + x;
+                    if (
+                        x >= 0 &&
+                        x < size &&
+                        y >= 0 &&
+                        y < size &&
+                        occupied[cell] === -1 &&
+                        !seen.has(cell) &&
+                        !reserved.has(cell)
+                    ) {
+                        neighbors.push({ cell, direction: d });
+                    }
                 }
+                if (!neighbors.length) break;
+                const straight = neighbors.find(
+                    (n) => n.direction === previousDirection,
+                );
+                const next =
+                    straight && rng() < 0.35
+                        ? straight
+                        : neighbors[Math.floor(rng() * neighbors.length)];
+                current = next.cell;
+                previousDirection = next.direction;
+                path.push(current);
+                seen.add(current);
             }
-
-            const neighbors = possible.filter(
-                (n) =>
-                    n.x >= 0 &&
-                    n.x < size &&
-                    n.y >= 0 &&
-                    n.y < size &&
-                    !occupied[n.y][n.x] &&
-                    shape[n.y][n.x] &&
-                    !path.some((p) => p.x === n.x && p.y === n.y),
+            if (path.length < 2) continue;
+            const hits = new Set<number>();
+            path.forEach((cell) =>
+                coverage[cell].forEach((tile) => hits.add(tile)),
             );
-
-            if (neighbors.length === 0) break;
-            const next = neighbors[Math.floor(rng() * neighbors.length)];
-            curr = { x: next.x, y: next.y };
-            path.push(curr);
+            let rootHits = 0,
+                depth = 1;
+            hits.forEach((tile) => {
+                if (!blocked[tile]) rootHits++;
+                depth = Math.max(depth, tiles[tile].depth + 1);
+            });
+            // Prevent difficulty spikes from a much longer chain than the profile requested.
+            if (depth > targetDepth + (profile.kind === "learn" ? 0 : 1))
+                continue;
+            const score =
+                rootHits * rootWeight +
+                hits.size * 1.5 +
+                Math.min(depth, targetDepth) * 2 +
+                ray.length * 0.65 +
+                path.length * 0.18 +
+                rng() * 3 -
+                (depth > targetDepth ? 8 : 0) -
+                (hits.size === 0 && tiles.length > 0 ? 18 : 0);
+            if (score > bestScore) {
+                bestScore = score;
+                best = { path, direction, hits, depth, ray };
+            }
         }
-
-        // Unreserve the exit ray
-        rayCells.forEach((p) => {
-            occupied[p.y][p.x] = false;
+        if (!best || (best.hits.size === 0 && tiles.length > 3)) break;
+        const index = tiles.length;
+        tiles.push(best);
+        blocked.push(false);
+        roots++;
+        best.hits.forEach((tile) => {
+            if (!blocked[tile]) roots--;
+            blocked[tile] = true;
         });
-
-        // Strictly enforce minimum lengths to avoid 1-length arrow flooding!
-        // Only accept short paths if we are truly desperate and the board is largely empty
-        // Wait, NO! If we want to guarantee NO short arrows, we strictly enforce it.
-        // During the last few attempts, we can allow slightly shorter arrows (e.g. minLen/2)
-        // just to fill tiny gaps, but NEVER 1-length.
-        const allowedMinLen =
-            attemptsWithoutPlacement > maxAttempts * 0.8
-                ? Math.max(2, Math.floor(minLen / 2))
-                : minLen;
-
-        if (path.length >= allowedMinLen || path.length === targetLen) {
-            // Found a valid snake
-            path.reverse(); // so tail is at start of array, head at end
-            path.forEach((p) => (occupied[p.y][p.x] = true));
-            tiles.push({ path, direction: dir });
-            attemptsWithoutPlacement = 0; // reset
-        } else {
-            attemptsWithoutPlacement++;
-        }
+        best.path.forEach((cell) => {
+            occupied[cell] = index;
+        });
+        best.ray.forEach((cell) => coverage[cell].push(index));
     }
-
-    const filledCount = tiles.reduce((sum, t) => sum + t.path.length, 0);
-    return {
-        tiles: tiles.reverse(), // reverse so first generated (removed last) is placed early in array
-        filled: filledCount / activeCellCount,
-    };
+    const arrows = tiles
+        .filter(
+            (tile, index) =>
+                profile.kind === "learn" ||
+                blocked[index] ||
+                tile.hits.size > 0,
+        )
+        .map((tile) => ({
+            path: tile.path
+                .slice()
+                .reverse()
+                .map((cell) => ({
+                    x: cell % size,
+                    y: Math.floor(cell / size),
+                })),
+            direction: DIRECTIONS[tile.direction],
+        }));
+    // Do not expose construction/solution order through render order or hint selection.
+    for (let i = arrows.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [arrows[i], arrows[j]] = [arrows[j], arrows[i]];
+    }
+    return arrows;
 }
+
+function candidateScore(
+    metrics: DifficultyMetrics,
+    profile: DifficultyProfile,
+): number {
+    if (!metrics.solvable || metrics.tileCount < 3) return -Infinity;
+    const depthDistance = Math.abs(
+        metrics.dependencyDepth - profile.targetDepth,
+    );
+    const ratioDistance = Math.abs(
+        metrics.startingMoveRatio - profile.targetStartingRatio,
+    );
+    const branching = metrics.multiBlockerTiles / metrics.tileCount;
+    return (
+        -depthDistance * 10 -
+        ratioDistance * 35 +
+        Math.min(0.35, branching) * 12 -
+        metrics.independentTiles * 2 +
+        Math.min(0.8, metrics.fillRatio) * 5
+    );
+}
+
+const FIRST_LESSON: Arrow[] = [
+    {
+        path: [
+            { x: 1, y: 3 },
+            { x: 1, y: 2 },
+            { x: 1, y: 1 },
+        ],
+        direction: "up",
+    },
+    {
+        path: [
+            { x: 3, y: 3 },
+            { x: 3, y: 2 },
+            { x: 3, y: 1 },
+            { x: 2, y: 1 },
+        ],
+        direction: "left",
+    },
+    {
+        path: [
+            { x: 1, y: 4 },
+            { x: 2, y: 4 },
+            { x: 3, y: 4 },
+            { x: 4, y: 4 },
+            { x: 4, y: 3 },
+        ],
+        direction: "up",
+    },
+];
+
+const SECOND_LESSON: Arrow[] = [
+    {
+        path: [
+            { x: 1, y: 1 },
+            { x: 2, y: 1 },
+        ],
+        direction: "right",
+    },
+    {
+        path: [
+            { x: 4, y: 3 },
+            { x: 4, y: 2 },
+            { x: 4, y: 1 },
+        ],
+        direction: "up",
+    },
+    {
+        path: [
+            { x: 3, y: 0 },
+            { x: 4, y: 0 },
+            { x: 5, y: 0 },
+        ],
+        direction: "right",
+    },
+    {
+        path: [
+            { x: 1, y: 4 },
+            { x: 1, y: 5 },
+            { x: 2, y: 5 },
+            { x: 3, y: 5 },
+        ],
+        direction: "right",
+    },
+];
 
 export function generateLevel(id: number): LevelData {
-    // 40 levels per round (8 shapes * 5 levels each)
-    const round = Math.floor((id - 1) / 40);
-    const levelInShape = (id - 1) % 5;
-
-    // First round base is 6. Second round base is 11, etc.
-    const baseSize = 6 + round * 5;
-    // Grid size increases by 1 each level inside the 5-level shape block
-    const calculatedSize = baseSize + levelInShape;
-    // Cap at 25 to prevent unplayable density (tiles become too small)
-    const size = Math.min(calculatedSize, 25);
-
-    const shapeName = getShapeForLevel(id);
-    const shape = generateShapeMask(shapeName, size);
-    const activeCellCount = countActiveCells(shape);
-
-    // Force longer interlocking snakes — short arrows are trivial to solve.
-    // size 6→minLen 2, size 12→3, size 18→4, size 25→6
-    const minLen = Math.max(2, Math.floor(size / 5) + 1);
-    // size 6→maxLen 7, size 12→10, size 18→13, size 25→16
-    const maxLen = Math.min(Math.floor(size / 2) + 4, 18);
-
-    let bestResult: Omit<TileData, 'id'>[] = [];
-    let bestFill = 0;
-
-    // Backward generation is instant, so we can try generating many times
-    // and just pick the instance that packed the board the tightest!
-    for (let seedOffset = 0; seedOffset < 60; seedOffset++) {
-        const rng = seedrandom(`${id}_backward_v9_${seedOffset}`);
-        const result = tryGenerateBackward(
-            rng,
-            size,
-            shape,
-            activeCellCount,
-            minLen,
-            maxLen,
-        );
-
-        if (result.filled > bestFill) {
-            bestFill = result.filled;
-            bestResult = result.tiles;
-        }
-
-        // 92% fill with long snakes is excellent — ship it.
-        if (bestFill >= 0.92) break;
-    }
-
-    // Fallback: simpler generation for extreme edge cases like Level 1 where size is 6 and minLen is 2
-    if (bestResult.length === 0) {
-        const rng = seedrandom(`${id}_fallback`);
-        const fallback = generateSimpleFallback(rng, size, shape);
-        return { id, size, tiles: fallback, shape };
-    }
-
-    return { id, size, tiles: bestResult, shape };
-}
-
-// Very simple 1-length fallback for level 1 edge cases if everything fails
-function generateSimpleFallback(
-    rng: () => number,
-    size: number,
-    shape: boolean[][],
-): Omit<TileData, 'id'>[] {
-    const tiles: Omit<TileData, 'id'>[] = [];
-    const DIRS: Direction[] = ['up', 'down', 'left', 'right'];
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            if (shape[y][x]) {
-                const dir = DIRS[Math.floor(rng() * DIRS.length)];
-                tiles.push({ path: [{ x, y }], direction: dir });
+    const profile = getDifficultyProfile(id);
+    const { size } = profile;
+    const shape = restoreShape(id, size);
+    let tiles: Arrow[] = [];
+    let metrics: DifficultyMetrics | undefined;
+    let bestScore = -Infinity;
+    if (id <= 2) {
+        const lesson = id === 1 ? FIRST_LESSON : SECOND_LESSON;
+        tiles = lesson.map((tile) => ({
+            ...tile,
+            path: tile.path.map((point) => ({ ...point })),
+        }));
+        metrics = analyzeLevel({ size, shape, tiles });
+    } else {
+        const candidates = profile.kind === "challenge" ? 36 : 12;
+        for (let seed = 0; seed < candidates; seed++) {
+            const candidate = generateCandidate(id, seed, profile, shape);
+            const analyzed = analyzeLevel({ size, shape, tiles: candidate });
+            const score = candidateScore(analyzed, profile);
+            if (score > bestScore) {
+                tiles = candidate;
+                metrics = analyzed;
+                bestScore = score;
             }
+            if (
+                analyzed.solvable &&
+                analyzed.dependencyDepth === profile.targetDepth &&
+                Math.abs(
+                    analyzed.startingMoveRatio - profile.targetStartingRatio,
+                ) < 0.045 &&
+                analyzed.fillRatio >= 0.65 &&
+                analyzed.independentTiles === 0
+            )
+                break;
         }
     }
-    return tiles;
+    // Never replace a failed puzzle with unvalidated random directions.
+    if (!metrics?.solvable || tiles.length < 3 || countActiveCells(shape) < 1) {
+        throw new Error(`Could not construct a valid puzzle for level ${id}.`);
+    }
+    return {
+        id,
+        size,
+        tiles,
+        shape,
+        version: CAMPAIGN_VERSION,
+        difficulty: { profile, metrics },
+    };
 }
 
 export function restoreShape(levelId: number, size: number): boolean[][] {

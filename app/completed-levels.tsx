@@ -4,6 +4,7 @@ import { useColorScheme } from "nativewind";
 import { useCallback, useState } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
 import { BannerAdWidget } from "../components/BannerAdWidget";
+import { CAMPAIGN_VERSION } from "../constants/levelDifficulty";
 import { formatTime } from "../utils/format";
 import { CompletionRecord, getCompletedLevels } from "../utils/storage";
 
@@ -40,21 +41,35 @@ export default function CompletedLevelsScreen() {
 
             {/* Stats */}
             <View className="flex-1">
-                <StarRow count={item.stars} />
-                <View className="flex-row items-center gap-4 mt-1">
+                <View className="flex-row items-center gap-2">
+                    <StarRow count={item.stars} />
+                    <Text className="text-xs text-gray-500">Best stars</Text>
+                </View>
+                {(item.version || 1) < CAMPAIGN_VERSION && (
+                    <Text className="text-xs text-amber-700 dark:text-amber-300">
+                        Original campaign record
+                    </Text>
+                )}
+                <View className="flex-row flex-wrap items-center gap-2 mt-1">
                     <Text className="text-gray-500 dark:text-gray-400 text-sm">
-                        🕐 {formatTime(item.time)}
+                        Best time {formatTime(item.time)}
                     </Text>
                     <Text className="text-gray-500 dark:text-gray-400 text-sm">
-                        ❤️ {item.heartsUsed} used
+                        {item.heartsUsed} fewest mistakes
                     </Text>
                 </View>
             </View>
 
             {/* Replay */}
             <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                    (item.version || 1) < CAMPAIGN_VERSION
+                        ? `Play new edition of level ${item.levelId}`
+                        : `Replay level ${item.levelId}`
+                }
                 onPress={() => router.push(`/game/${item.levelId}?replay=true`)}
-                className="bg-gray-100 dark:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 w-10 h-10 rounded-xl items-center justify-center"
+                className="bg-gray-100 dark:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 w-11 h-11 rounded-xl items-center justify-center"
             >
                 <Ionicons
                     name="reload"
@@ -84,6 +99,10 @@ export default function CompletedLevelsScreen() {
                 </Text>
             </View>
 
+            <Text className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Best time and stars are tracked separately. Original campaign
+                records are kept; replay opens the new edition.
+            </Text>
             {records.length === 0 ? (
                 <View className="flex-1 items-center justify-center">
                     <Ionicons
@@ -101,7 +120,9 @@ export default function CompletedLevelsScreen() {
             ) : (
                 <FlatList
                     data={records}
-                    keyExtractor={(item) => String(item.levelId)}
+                    keyExtractor={(item) =>
+                        `${item.version || 1}:${item.levelId}`
+                    }
                     renderItem={renderItem}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={{ paddingBottom: 40 }}

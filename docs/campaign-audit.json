@@ -1,0 +1,167 @@
+{
+  "campaignVersion": 2,
+  "baselineRevision": "afc30350088a514427ab89b1e4545f8b0495e084",
+  "levelsAudited": 1500,
+  "methodology": "Each board validated with actual canMove rules and independent dependency graph. Dependency depth counts parallel rounds of removing all currently legal arrows; meanAvailableRatio averages legal fraction across those rounds. These are structural proxies, not measured human difficulty.",
+  "validation": [
+    "All 1500 levels solve using real game movement rules, both in parallel layers and a seeded alternate single-arrow order",
+    "No body overlaps, gaps, self-collisions, off-mask cells, one-cell arrows or incorrect head directions",
+    "Difficulty metadata equals freshly computed measurements",
+    "All post-tutorial levels have depth >= 3, at most 60% initially legal arrows and no isolated filler arrows",
+    "Deterministic generation and a byte-identical regeneration/index idempotence check pass"
+  ],
+  "before": [
+    {
+      "levels": "1–40",
+      "size": 8,
+      "tileCount": 7.5,
+      "startingMoveRatio": 0.769,
+      "dependencyDepth": 2.225,
+      "multiBlockerTiles": 0.575,
+      "meanAvailableRatio": 0.8481
+    },
+    {
+      "levels": "41–80",
+      "size": 13,
+      "tileCount": 14.875,
+      "startingMoveRatio": 0.6766,
+      "dependencyDepth": 2.925,
+      "multiBlockerTiles": 2.05,
+      "meanAvailableRatio": 0.7952
+    },
+    {
+      "levels": "81–160",
+      "size": 20.5,
+      "tileCount": 26.525,
+      "startingMoveRatio": 0.6278,
+      "dependencyDepth": 3.7,
+      "multiBlockerTiles": 4.6125,
+      "meanAvailableRatio": 0.7419
+    },
+    {
+      "levels": "161–500",
+      "size": 25,
+      "tileCount": 30.7971,
+      "startingMoveRatio": 0.5974,
+      "dependencyDepth": 4.0824,
+      "multiBlockerTiles": 6.0735,
+      "meanAvailableRatio": 0.7152
+    },
+    {
+      "levels": "501–1000",
+      "size": 25,
+      "tileCount": 30.17,
+      "startingMoveRatio": 0.5959,
+      "dependencyDepth": 4.078,
+      "multiBlockerTiles": 6.184,
+      "meanAvailableRatio": 0.7122
+    },
+    {
+      "levels": "1001–1500",
+      "size": 25,
+      "tileCount": 30.452,
+      "startingMoveRatio": 0.5943,
+      "dependencyDepth": 4.054,
+      "multiBlockerTiles": 6.08,
+      "meanAvailableRatio": 0.7161
+    }
+  ],
+  "after": [
+    {
+      "levels": "1–40",
+      "size": 9.3,
+      "tileCount": 7.9,
+      "startingMoveRatio": 0.3276,
+      "dependencyDepth": 5.25,
+      "multiBlockerTiles": 3.25,
+      "meanAvailableRatio": 0.508
+    },
+    {
+      "levels": "41–80",
+      "size": 12.175,
+      "tileCount": 12.625,
+      "startingMoveRatio": 0.3066,
+      "dependencyDepth": 7.1,
+      "multiBlockerTiles": 5.95,
+      "meanAvailableRatio": 0.4308
+    },
+    {
+      "levels": "81–160",
+      "size": 12.7375,
+      "tileCount": 14,
+      "startingMoveRatio": 0.2937,
+      "dependencyDepth": 8.2625,
+      "multiBlockerTiles": 6.7125,
+      "meanAvailableRatio": 0.3852
+    },
+    {
+      "levels": "161–500",
+      "size": 14.1941,
+      "tileCount": 16.9647,
+      "startingMoveRatio": 0.2866,
+      "dependencyDepth": 9.8147,
+      "multiBlockerTiles": 8.4559,
+      "meanAvailableRatio": 0.344
+    },
+    {
+      "levels": "501–1000",
+      "size": 15.758,
+      "tileCount": 19.826,
+      "startingMoveRatio": 0.28,
+      "dependencyDepth": 11.262,
+      "multiBlockerTiles": 10.158,
+      "meanAvailableRatio": 0.3127
+    },
+    {
+      "levels": "1001–1500",
+      "size": 16.612,
+      "tileCount": 21.752,
+      "startingMoveRatio": 0.2824,
+      "dependencyDepth": 12.196,
+      "multiBlockerTiles": 11.286,
+      "meanAvailableRatio": 0.296
+    }
+  ],
+  "cadence": [
+    {
+      "kind": "learn",
+      "levels": 5,
+      "size": 6.2,
+      "tileCount": 5,
+      "startingMoveRatio": 0.5048,
+      "dependencyDepth": 3.2,
+      "multiBlockerTiles": 1.6,
+      "meanAvailableRatio": 0.6762
+    },
+    {
+      "kind": "breather",
+      "levels": 298,
+      "size": 14.1711,
+      "tileCount": 18.7953,
+      "startingMoveRatio": 0.3473,
+      "dependencyDepth": 9.349,
+      "multiBlockerTiles": 8.8356,
+      "meanAvailableRatio": 0.3706
+    },
+    {
+      "kind": "build",
+      "levels": 1047,
+      "size": 15.3018,
+      "tileCount": 18.9484,
+      "startingMoveRatio": 0.2736,
+      "dependencyDepth": 10.9819,
+      "multiBlockerTiles": 9.766,
+      "meanAvailableRatio": 0.319
+    },
+    {
+      "kind": "challenge",
+      "levels": 150,
+      "size": 17.4267,
+      "tileCount": 20.22,
+      "startingMoveRatio": 0.2336,
+      "dependencyDepth": 12.8067,
+      "multiBlockerTiles": 10.9067,
+      "meanAvailableRatio": 0.2788
+    }
+  ]
+}

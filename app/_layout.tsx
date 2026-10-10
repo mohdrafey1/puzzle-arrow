@@ -3,7 +3,7 @@ import {
     DefaultTheme,
     ThemeProvider,
 } from "@react-navigation/native";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { setAudioModeAsync } from "expo-audio";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -30,6 +30,7 @@ export const unstable_settings = {
 
 export default function RootLayout() {
     const colorScheme = useColorScheme();
+    const pathname = usePathname();
 
     async function checkForUpdates() {
         try {
@@ -69,7 +70,7 @@ export default function RootLayout() {
             playsInSilentMode: true,
             // 'duckOthers' = request audio focus with ducking, not full exclusive focus.
             // This makes the Android requestAudioFocus binder call lighter → prevents ANR.
-            interruptionMode: 'duckOthers',
+            interruptionMode: "duckOthers",
             allowsRecording: false,
             shouldPlayInBackground: false,
             shouldRouteThroughEarpiece: false,
@@ -84,7 +85,10 @@ export default function RootLayout() {
         const subscription = AppState.addEventListener(
             "change",
             (nextAppState: AppStateStatus) => {
-                if (nextAppState === "active") {
+                if (
+                    nextAppState === "active" &&
+                    !pathname.startsWith("/game/")
+                ) {
                     showAppOpen();
                     preloadAppOpen();
                 }
@@ -94,7 +98,7 @@ export default function RootLayout() {
         return () => {
             subscription.remove();
         };
-    }, []);
+    }, [pathname]);
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>

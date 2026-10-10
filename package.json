@@ -8,7 +8,16 @@
         "android": "expo run:android",
         "ios": "expo run:ios",
         "web": "expo start --web",
-        "lint": "expo lint"
+        "lint": "expo lint",
+        "typecheck": "tsc --noEmit",
+        "levels:generate": "node -r ./scripts/register-typescript.cjs scripts/generate-levels.ts",
+        "levels:audit": "node -r ./scripts/register-typescript.cjs scripts/audit-levels.ts",
+        "test:levels": "node -r ./scripts/register-typescript.cjs scripts/test-levels.ts",
+        "test:progress": "node -r ./scripts/register-typescript.cjs --test tests/progression.test.ts tests/storage.test.ts",
+        "test:daily": "node -r ./scripts/register-typescript.cjs scripts/test-daily.ts",
+        "test:ui": "playwright test",
+        "test": "npm run test:levels && npm run test:progress && npm run test:daily && npm run test:colors",
+        "test:colors": "node -r ./scripts/register-typescript.cjs scripts/test-colors.ts"
     },
     "dependencies": {
         "@expo/vector-icons": "^15.0.3",
@@ -55,6 +64,7 @@
         "tailwindcss": "^3.4.19"
     },
     "devDependencies": {
+        "@playwright/test": "^1.63.0",
         "@types/react": "~19.1.0",
         "@types/seedrandom": "^3.0.8",
         "eslint": "^9.25.0",

@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getDatabase } from "firebase/database";
+import { Database, getDatabase } from "firebase/database";
 
 const firebaseConfig = {
     apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -11,5 +11,15 @@ const firebaseConfig = {
     appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-const app = initializeApp(firebaseConfig);
-export const db = getDatabase(app);
+let database: Database | undefined;
+
+/** Campaign and editor remain available without community service configuration. */
+export function getFirebaseDatabase(): Database {
+    if (!firebaseConfig.databaseURL || !firebaseConfig.projectId) {
+        throw new Error(
+            "Community services are not configured. You can still play the campaign offline.",
+        );
+    }
+    if (!database) database = getDatabase(initializeApp(firebaseConfig));
+    return database;
+}
